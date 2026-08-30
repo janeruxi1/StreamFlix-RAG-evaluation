@@ -76,15 +76,29 @@ def write_corpus(corpus_dir: Path = CORPUS_DIR) -> int:
         path.write_text(
             _front_matter(article) + article["body"].strip() + "\n",
             encoding="utf-8",
+            newline="\n",     # pin LF so output does not vary by platform
         )
     return len(ARTICLES)
 
 
 def write_golden_set(golden_dir: Path = GOLDEN_DIR) -> int:
-    """Write the golden question set to JSON. Returns count."""
+    """Write the golden question set to JSON. Returns count.
+
+    The trailing newline is not cosmetic. Without it, every regeneration
+    of this file reintroduces a POSIX-convention violation that the
+    end-of-file-fixer pre-commit hook then "fixes", so the file flips
+    between two states and shows up as a spurious diff on unrelated
+    commits. Emitting it here makes regeneration idempotent.
+
+    `newline="\\n"` pins LF on every platform. Python's default text mode
+    translates "\\n" to "\\r\\n" on Windows, which would make the file's
+    line endings depend on who ran the script.
+    """
     golden_dir.mkdir(parents=True, exist_ok=True)
     (golden_dir / "golden_questions.json").write_text(
-        json.dumps(GOLDEN_QUESTIONS, indent=2), encoding="utf-8"
+        json.dumps(GOLDEN_QUESTIONS, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     return len(GOLDEN_QUESTIONS)
 

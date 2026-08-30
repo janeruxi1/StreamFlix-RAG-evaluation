@@ -60,8 +60,22 @@ to anyone who sees your screen or a screenshot.
 
 ```bash
 pre-commit install
-detect-secrets scan > .secrets.baseline
+detect-secrets scan --baseline .secrets.baseline
 ```
+
+> **Windows / PowerShell:** use `--baseline` as shown above, **not**
+> `detect-secrets scan > .secrets.baseline`. PowerShell's `>` redirect
+> writes **UTF-16**, and detect-secrets can only read UTF-8 — the hook
+> then fails with `error: Unable to read baseline` on every commit. The
+> failure mode is confusing because the file looks fine in an editor.
+> `--baseline` has the tool write the file itself, in the right encoding.
+>
+> If you already hit this, re-encode rather than regenerate (regenerating
+> loses any audited entries):
+>
+> ```bash
+> python -c "import json,pathlib; p=pathlib.Path('.secrets.baseline'); d=json.loads(p.read_bytes().decode('utf-16')); p.write_text(json.dumps(d,indent=2)+'\n',encoding='utf-8',newline='\n')"
+> ```
 
 This installs git hooks that run on **every commit** and block it if:
 
