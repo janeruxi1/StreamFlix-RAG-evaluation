@@ -1,0 +1,76 @@
+# ============================================================
+# SECRETS — never commit these
+# ============================================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.toml
+.streamlit/secrets.toml
+credentials.json
+service-account*.json
+
+# detect-secrets baseline is safe to commit, but the audit file is not
+.secrets.baseline.audit
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+ENV/
+
+# ============================================================
+# Jupyter
+# ============================================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ============================================================
+# Testing / coverage
+# ============================================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ============================================================
+# Vector store artifacts (regenerable, can be large)
+# ============================================================
+data/vectorstore/
+data/embedding_cache/
+chroma_db/
+*.faiss
+*.index
+*.npy
+
+# ============================================================
+# LLM response cache (may contain generated content; regenerable)
+# ============================================================
+.llm_cache/
+data/cache/
+
+# ============================================================
+# Private prep material (interview rehearsal — not shipped)
+# ============================================================
+reports/prep/
+
+# ============================================================
+# OS / editor
+# ============================================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

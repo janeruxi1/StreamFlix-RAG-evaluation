@@ -1,0 +1,47 @@
+# Pre-commit hooks — the backstop that catches secrets before they
+# reach git history.
+#
+# Install once:
+#   pip install pre-commit
+#   pre-commit install
+#
+# After that, every `git commit` runs these checks automatically and
+# BLOCKS the commit if anything fails.
+
+repos:
+  # ------------------------------------------------------------------
+  # Secret detection — the important one
+  # ------------------------------------------------------------------
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: ".*\\.ipynb$|\\.secrets\\.baseline$"
+
+  # ------------------------------------------------------------------
+  # Strip notebook outputs — prevents a key that appeared in a cell
+  # output from being baked into the .ipynb JSON forever
+  # ------------------------------------------------------------------
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout
+
+  # ------------------------------------------------------------------
+  # General hygiene
+  # ------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # Blocks committing files over 5MB (catches accidental vector-store
+      # or model-artifact commits)
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+      # Catches private keys by content signature
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict  # catches <<<<<<< HEAD markers
