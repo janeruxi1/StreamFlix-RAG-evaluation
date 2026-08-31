@@ -10,8 +10,8 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable. The retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-> **Status: in progress.** Phases 1–2 of 7 are complete and tested.
-> Phases 3–7 are not built yet. The roadmap below marks exactly where the
+> **Status: in progress.** Phases 1–3 of 7 are complete and tested.
+> Phases 4–7 are not built yet. The roadmap below marks exactly where the
 > line is. Nothing in this README describes results that don't exist.
 
 ---
@@ -124,11 +124,31 @@ indexes earn their complexity somewhere north of ~100k vectors; the
 rationale is written up in `src/retrieval/vectorstore.py` rather than left
 implicit.
 
+### Phase 3 — Retrieval bake-off ✅
+
+48 configurations: 4 chunking strategies × 3 retrieval arms (BM25,
+LSA-dense, RRF hybrid) × 4 depths, all indexing the same text and scored
+by the same code.
+
+That last point is a correction. Phase 1 ran BM25 over whole *articles*
+while Phase 2 ran dense retrieval over *chunks* — the unit of retrieval
+differed, so any gap between them could have been the unit rather than
+the method. Those numbers were never comparable, and Phase 3 rebuilds the
+comparison properly.
+
+Most of the phase is about not being fooled by a 48-row table. See the
+findings below.
+
 ---
 
 ## Findings so far
 
-**1. The untuned dense baseline loses to BM25.**
+Findings 1 and 2 are Phase 2 results. Phase 3 revised both — the
+revisions are findings 5 and 6, and the progression is left visible
+rather than edited away.
+
+**1. The untuned dense baseline loses to BM25.** *(Phase 2 — later
+qualified)*
 
 | Category | BM25 | Dense (LSA) | Δ |
 |---|---:|---:|---:|
@@ -145,8 +165,15 @@ backend. The conclusion isn't "dense retrieval is bad"; it's that a
 lexical baseline has to be **beaten, not assumed away**, and that shipping
 the dense system on intuition would have made the product worse.
 
+> **Phase 3 qualification:** with a fair chunk-level comparison and a
+> *paired* bootstrap, the BM25–dense gap at depth 10 is +0.009 recall
+> (95% CI [−0.023, +0.042], p=0.655) — **not statistically
+> distinguishable**, and the two arms differ on only 8 of 95 questions.
+> The Phase 2 point estimate was real; the conclusion drawn from it was
+> stronger than the evidence supported.
+
 **2. One question defeats both retrievers — and it will look like a
-hallucination.**
+hallucination.** *(Phase 2 — later overturned, see finding 6)*
 
 `mh-011` *("Charged after I cancelled — what do I do?")* returns 0%
 recall@5 under dense retrieval and 50% under BM25. Neither surfaces both
@@ -166,6 +193,76 @@ This is the clearest argument for the harness scoring retrieval and
 generation **separately**. Context precision/recall isolate it; an
 end-to-end answer-quality score would average it away.
 
+**3. Ranking a depth sweep by recall is arithmetic, not evidence.**
+
+recall@k cannot decrease as k grows, so sweeping depth and sorting by
+recall crowns the deepest configuration by construction — it would do so
+even for a retriever returning documents at random. The obvious escape is
+a rank-sensitive metric, but MRR and nDCG turned out to be monotone in
+depth too, for a structural reason: retrieving deeper only ever *appends*
+to the ranked list, so the first correct document never moves and each
+extra item adds non-negative discounted gain.
+
+There is therefore no quality-only metric that can select retrieval
+depth. Depth is a **cost** decision, which makes measuring context tokens
+mandatory rather than a refinement.
+
+**4. Chunking buys cost, not recall — and the top of the table is a
+trap.**
+
+| | recall | tokens/query |
+|---|---:|---:|
+| Top of the recall table (`whole_article` + LSA, depth 15) | 0.918 | 2,543 |
+| Cheapest statistically indistinguishable config (`markdown_section` + LSA, depth 15) | 0.878 | 565 |
+
+The leader costs **4.5× more context per query, forever, for a +0.040
+recall difference that fails a paired significance test** (p=0.075).
+Three configurations are indistinguishable from it.
+
+This reframes what chunking is for. Phase 2 saw `whole_article`
+performing well and chunking looking like complexity without payoff —
+because recall was the only axis on the page. Chunking's value on this
+corpus was never higher recall; it's that a chunk is a smaller unit of
+evidence, so the same ground truth arrives without dragging whole
+articles of irrelevant text along with it. The saving compounds in
+Phase 5, since fewer distractor tokens is exactly the condition under
+which faithfulness improves.
+
+**Recommended configuration:** `markdown_section` + BM25 at depth 15 —
+recall 0.882 at 571 tokens/query. Chosen on the Pareto frontier under a
+600-token budget, not by topping the table.
+
+**5. The bake-off finds a group, not a winner.**
+
+At fixed depth 10, 7 of 11 challengers are significantly worse than the
+leader and 4 are indistinguishable from it. Ninety-five questions can
+separate a real tail — `sentence_window`, the most elaborate strategy
+producing the most chunks, is beaten across every arm — but cannot rank
+the top 5 against each other. Inside that group, cost and simplicity
+decide; between group and tail, the measurement decides.
+
+Comparisons are **paired** bootstraps, because every configuration is
+scored on the same questions. Marginal CIs would be dominated by
+question difficulty, which is shared across arms and therefore irrelevant
+to which arm is better.
+
+**6. mh-011 is resolved — and Phase 2's conclusion was wrong.**
+
+Phase 2 found the refund-contradiction question failed under both
+retrievers and concluded it was "a property of the question" that
+"changing retriever will not fix." That was too strong.
+
+10 of 48 configurations retrieve both articles, and an oracle over the
+pooled candidates found both for **every** chunking strategy at depth 30.
+So it was never a candidate-generation failure — the retriever always
+surfaced them and simply ranked them below the free-trial articles.
+
+Ranking failures and candidate failures need opposite fixes (retrieve
+deeper / rerank versus query rewriting or a corpus change). Phase 2 had
+no oracle, couldn't tell them apart, and guessed the harder one. What it
+got right is the consequence: at depth 5 the generator still receives
+five confident, on-topic, wrong chunks.
+
 ---
 
 ## Roadmap
@@ -174,7 +271,7 @@ end-to-end answer-quality score would average it away.
 |---|---|
 | 1. Corpus + golden set | ✅ Complete |
 | 2. Chunking, embeddings, retrieval baseline | ✅ Complete |
-| 3. Retrieval bake-off — strategy × backend × top-k, BM25 as a first-class arm | Not started |
+| 3. Retrieval bake-off — strategy × backend × depth, BM25 as a first-class arm | ✅ Complete |
 | 4. Generation layer — prompting, grounding, refusal behaviour | Not started |
 | 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | Not started |
 | 6. LLM-as-judge + failure analysis | Not started |
@@ -195,8 +292,9 @@ python -c "from src.corpus.build import write_corpus, write_golden_set; write_co
 
 python notebooks/01_corpus_construction.py    # corpus audit + BM25 floor
 python notebooks/02_chunking_embedding.py     # chunking + retrieval baseline
+python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 
-pytest tests/ -q                              # 134 tests
+pytest tests/ -q                              # 192 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -239,12 +337,12 @@ engineering rather than an afterthought.
 ```
 src/
   corpus/      seed articles, golden set, corpus build + BM25 difficulty analysis
-  retrieval/   chunking strategies, embedding backends, vector store
+  retrieval/   chunking strategies, embedding backends, vector store, retrieval arms
   llm/         provider abstraction, credential masking, call budget, response cache
   generation/  (Phase 4)
-  evaluation/  (Phase 5)
-notebooks/     01 corpus construction · 02 chunking + embedding
-tests/         134 tests — corpus, difficulty, chunking, retrieval, provider security
+  evaluation/  retrieval metrics, paired bootstrap, Pareto frontier
+notebooks/     01 corpus construction · 02 chunking + embedding · 03 retrieval bake-off
+tests/         192 tests — corpus, difficulty, chunking, retrieval, metrics, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures
 ```

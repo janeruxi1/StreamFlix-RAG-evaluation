@@ -45,6 +45,7 @@ jobs:
         run: |
           python notebooks/01_corpus_construction.py > /dev/null
           python notebooks/02_chunking_embedding.py > /dev/null
+          python notebooks/03_retrieval_bakeoff.py > /dev/null
 
       - name: Assert the pipeline ran without any credential
         run: |

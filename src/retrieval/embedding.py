@@ -50,6 +50,16 @@ class Embedder(ABC):
     @abstractmethod
     def dimension(self) -> int: ...
 
+    @property
+    def cache_key(self) -> str:
+        """Identity for caching — must capture anything that changes output.
+
+        For a pretrained model the model name is sufficient. For a backend
+        FITTED on the corpus it is not, and the override in
+        TfidfSvdEmbedder explains why.
+        """
+        return f"{self.name}:{getattr(self, 'model_name', self.name)}"
+
     @staticmethod
     def _normalise(vectors: np.ndarray) -> np.ndarray:
         """L2-normalise rows so dot product equals cosine similarity."""
@@ -132,7 +142,29 @@ class TfidfSvdEmbedder(Embedder):
         )
         self._svd.fit(tfidf)
         self._fitted = True
+        self._fit_fingerprint = hashlib.sha256(
+            json.dumps(sorted(corpus_texts)).encode()
+        ).hexdigest()[:16]
         return self
+
+    @property
+    def cache_key(self) -> str:
+        """Identity including WHAT THIS WAS FITTED ON.
+
+        This override is load-bearing. Unlike a pretrained transformer,
+        this embedder's output for a given text depends entirely on the
+        corpus it was fitted to — the same query encodes differently under
+        a vocabulary built from 45 whole articles versus 994 sentences.
+
+        Without the fingerprint, the disk cache would key identical query
+        text to a single entry and hand back vectors from whichever
+        chunking strategy ran first. Every subsequent configuration in the
+        bake-off would then be silently scored against the wrong query
+        embeddings — producing a complete, plausible, entirely invalid
+        results table with no error anywhere.
+        """
+        fp = getattr(self, "_fit_fingerprint", "unfitted")
+        return f"{self.name}:svd{self.n_components}:{fp}"
 
     @property
     def dimension(self) -> int:
@@ -191,12 +223,12 @@ def encode_cached(embedder: Embedder, texts: list[str],
                   cache: EmbeddingCache | None = None) -> np.ndarray:
     """Encode with a disk cache in front."""
     cache = cache or EmbeddingCache()
-    model = getattr(embedder, "model_name", embedder.name)
-    hit = cache.get(embedder.name, model, texts)
+    key = embedder.cache_key
+    hit = cache.get(embedder.name, key, texts)
     if hit is not None:
         return hit
     vectors = embedder.encode(texts)
-    cache.put(embedder.name, model, texts, vectors)
+    cache.put(embedder.name, key, texts, vectors)
     return vectors
 
 
