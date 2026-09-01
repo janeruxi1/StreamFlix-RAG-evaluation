@@ -123,9 +123,10 @@ def test_every_variant_renders_both_fields():
 
 def test_variants_form_a_ladder_of_increasing_instruction():
     """Each step should add instruction, not rewrite from scratch."""
-    lengths = [len(VARIANTS[n].template) for n in
-               ("naive", "grounded", "grounded_refusal", "cited")]
+    rungs = ("naive", "grounded", "grounded_refusal", "cited", "strict")
+    lengths = [len(VARIANTS[n].template) for n in rungs]
     assert lengths == sorted(lengths)
+    assert len(rungs) == len(VARIANTS), "a variant is missing from the ladder"''
 
 
 def test_citation_variants_are_marked():
@@ -316,3 +317,72 @@ def test_citation_pattern_covers_all_prefix_lengths(articles):
     prefixes = {a.article_id.split("-")[0] for a in articles}
     assert {len(p) for p in prefixes} & {3, 5}, \
         "corpus should contain non-4-letter prefixes for this to be a real test"
+
+
+# ---------------------------------------------------------------------
+# Answer-then-refuse — regression for a latent scoring bug
+# ---------------------------------------------------------------------
+@pytest.mark.parametrize("text", [
+    "The Premium plan costs $19.99/month [bill-001]. I don't have enough "
+    "information about student discounts.",
+    "You can cancel from Account Settings [bill-003]. The context does not "
+    "mention refund timing.",
+    "Downloads are available on Premium [strm-006]. I don't know about the "
+    "exact device limit.",
+    "Refunds are issued within 30 days [bill-002], though the context doesn't "
+    "mention partial months.",
+    "You can change plans at any time from your account page, and the change "
+    "applies next cycle. I don't know about mid-cycle proration.",
+])
+def test_answer_then_refuse_is_not_scored_as_a_refusal(text):
+    """Regression. check_refusal originally inspected only the text AFTER
+    the refusal phrase, so a response that ANSWERED and then hedged about
+    a sub-part was scored as a clean refusal.
+
+    That error runs in the dangerous direction: a model that answers an
+    out-of-scope question and appends a hedge would be counted as having
+    correctly refused, making the safety metric report the opposite of
+    what happened. It was latent only because the extractive baseline
+    never produces this shape — LLM arms routinely do.
+    """
+    check = check_refusal(text)
+    assert not check.is_refusal, f"scored as refusal: {text!r}"
+    assert check.is_partial
+
+
+def test_citation_before_refusal_phrase_means_it_answered():
+    """A citation is a grounded claim by definition, so one appearing
+    before the refusal language proves the model answered first."""
+    check = check_refusal("Premium is $19.99 [bill-001]. I don't know more.")
+    assert not check.is_refusal
+
+
+def test_short_preamble_before_refusal_is_still_a_refusal():
+    """'Based on the context,' is a preamble, not an answer — the lead
+    threshold must not be so low that it catches these."""
+    for text in ("Based on the context, I don't have enough information "
+                 "to answer that.",
+                 "Unfortunately, I don't have enough information to answer that.",
+                 "After reviewing, I don't know."):
+        assert check_refusal(text).is_refusal, text
+
+
+def test_refusal_followed_by_a_pointer_stays_ambiguous_and_is_documented():
+    """A known boundary of pattern-based detection.
+
+    "I don't have enough information. The closest article is [bill-001]
+    but it doesn't cover this." is arguably a refusal with a helpful
+    pointer, and it is scored as a partial refusal (i.e. an answer)
+    because the tail is long and hedged.
+
+    Distinguishing it needs negation understanding, which is beyond a
+    regex and is what the Phase 6 judge is for. The misclassification
+    runs in the SAFE direction — it under-counts refusals, so it
+    under-claims safety rather than overstating it. Pinned here so the
+    behaviour is a documented choice rather than an accident.
+    """
+    check = check_refusal(
+        "I don't have enough information to answer that. The closest "
+        "article is [bill-001] but it doesn't cover this.")
+    assert check.is_partial
+    assert not check.is_refusal

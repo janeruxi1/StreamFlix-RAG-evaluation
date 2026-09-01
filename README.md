@@ -171,10 +171,19 @@ baseline's threshold sweep shows the same trade-off through a single
 knob: raising it from 0.15 to 0.50 lifts out-of-scope refusal from 33% to
 80% while dropping in-scope answering from 100% to 37%.
 
-**Partial refusals count as answers.** "I don't have specific details,
-but generally…" is the most dangerous response shape there is — it reads
-as appropriate caution while still making unsupported claims. Scoring it
-as a refusal would hide precisely the behaviour worth catching.
+**Partial refusals count as answers**, because unsupported claims were
+made either way. They come in two shapes and both must be caught:
+*refuse-then-answer* ("I don't have enough information, but generally…")
+and *answer-then-refuse* ("Premium costs $19.99 [bill-001]. I don't have
+enough information about student discounts.").
+
+The second is easy to miss, and missing it fails in the dangerous
+direction: a model that answers an out-of-scope question and appends a
+hedge gets counted as having correctly refused, so the safety metric
+reports the opposite of what happened. The detector was originally
+inspecting only text *after* the refusal phrase and had exactly this
+hole — latent, because the extractive baseline never produces that shape,
+but it would have corrupted every LLM arm the moment a key was added.
 
 **Blame attribution is built in.** The pipeline keeps retrieved chunks
 alongside every answer, so a wrong answer with zero retrieval recall is
@@ -352,7 +361,7 @@ python notebooks/02_chunking_embedding.py     # chunking + retrieval baseline
 python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
 
-pytest tests/ -q                              # 245 tests
+pytest tests/ -q                              # 253 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -403,7 +412,7 @@ src/
                equivalence testing, Pareto frontier
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal
-tests/         245 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         253 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures

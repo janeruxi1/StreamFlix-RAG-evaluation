@@ -72,12 +72,11 @@ def format_context(hits: list[SearchHit], max_chunks: int | None = None) -> str:
     strategy deliberately passes wider context than it embeds, and the
     generator should see the wider version.
     """
-    blocks = []
-    for i, hit in enumerate(hits[:max_chunks] if max_chunks else hits, 1):
-        blocks.append(
-            f"[{hit.chunk.article_id}] {hit.chunk.title}\n{hit.chunk.generation_text}"
-        )
-    return "\n\n".join(blocks)
+    selected = hits[:max_chunks] if max_chunks else hits
+    return "\n\n".join(
+        f"[{h.chunk.article_id}] {h.chunk.title}\n{h.chunk.generation_text}"
+        for h in selected
+    )
 
 
 @dataclass(frozen=True)

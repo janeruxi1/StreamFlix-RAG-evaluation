@@ -113,9 +113,15 @@ if not has_key:
       python -m src.llm.provider --check
 
   Estimated cost when enabled: {n_calls} calls
-  ({len(golden)} questions x {len(VARIANTS)} variants), roughly {n_calls * 900 / 1e6 * 0.15:.2f} USD on
-  gpt-4o-mini at ~900 prompt tokens each. Responses are cached on disk,
-  so re-running the notebook costs nothing.
+  ({len(golden)} questions x {len(VARIANTS)} variants).
+
+    input : {n_calls} x ~900 tok  = {n_calls * 900 / 1e6:.2f}M @ $0.15/M = ${n_calls * 900 / 1e6 * 0.15:.3f}
+    output: {n_calls} x ~150 tok  = {n_calls * 150 / 1e6:.2f}M @ $0.60/M = ${n_calls * 150 / 1e6 * 0.60:.3f}
+    total                                     ~${n_calls * 900 / 1e6 * 0.15 + n_calls * 150 / 1e6 * 0.60:.2f}
+
+  Output tokens are counted because they are priced 4x higher than input
+  on gpt-4o-mini; an input-only estimate understates the bill. Responses
+  are cached on disk, so re-running the notebook costs nothing.
 """)
 
 
@@ -279,8 +285,12 @@ print(f"\n  {'answerer':<22}{'refuseOOS':>11}{'answerIN':>10}{'F1':>7}"
 print("  " + "-" * 77)
 for _, r in df.iterrows():
     cp = f"{r.cite_prec:.3f}" if pd.notna(r.cite_prec) else "  —  "
+    # The extractive baseline sends no prompt, so a 0 here is "not
+    # applicable", not "free version of the same thing". Shown as a dash
+    # so it cannot be read as a token count it beat the LLM arms on.
+    tok = f"{r.tokens:.0f}" if r.tokens else "  —  "
     print(f"  {r.answerer:<22}{r.refuse_oos:>11.1%}{r.answer_in:>10.1%}"
-          f"{r.F1:>7.3f}{r.over_refuse:>9.1%}{cp:>10}{r.tokens:>8.0f}")
+          f"{r.F1:>7.3f}{r.over_refuse:>9.1%}{cp:>10}{tok:>8}")
 
 
 # =====================================================================
@@ -321,11 +331,36 @@ else:
   and it already shows both rates moving together.
 """)
 
-print("""  PARTIAL REFUSALS are tracked separately and counted as ANSWERS.
-  "I don't have specific details, but generally..." is the most dangerous
-  response shape there is: it reads as appropriate caution while still
-  making unsupported claims. Scoring it as a refusal would hide exactly
-  the behaviour worth catching.
+print("""  PARTIAL REFUSALS are tracked separately and counted as ANSWERS,
+  because unsupported claims were made either way. They come in two
+  shapes and both have to be caught:
+
+    refuse-then-answer   "I don't have enough information, but generally
+                          most services..."
+    answer-then-refuse   "Premium costs $19.99 [bill-001]. I don't have
+                          enough information about student discounts."
+
+  The second shape is the one that is easy to miss. An earlier version of
+  the detector inspected only the text AFTER the refusal phrase, so it
+  caught the first and scored the second as a clean refusal.
+
+  That error runs in the DANGEROUS direction. A model that answers an
+  out-of-scope question and appends a hedge would have been counted as
+  having correctly refused — the safety metric reporting the opposite of
+  what happened. It was latent here only because the extractive baseline
+  never produces that shape; LLM arms routinely do, so it would have
+  surfaced as soon as a credential was added, silently.
+
+  Evidence that a response answered rather than refused: substantive text
+  before the refusal phrase, a citation before it (a citation is a
+  grounded claim by definition), or a hedge plus substantial text after.
+
+  The residual boundary case is a refusal that ends with a pointer —
+  "...the closest article is [bill-001] but it doesn't cover this."
+  Classifying that needs negation understanding, which is beyond a regex
+  and is what Phase 6's judge is for. It is scored as an answer, which
+  under-counts refusals and therefore UNDER-claims safety — the safe
+  direction for the error to run.
 """)
 for _, r in df.iterrows():
     print(f"    {r.answerer:<22} partial-refusal rate {r.partial:.1%}")
