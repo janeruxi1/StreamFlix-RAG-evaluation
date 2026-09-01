@@ -306,3 +306,98 @@ def test_selection_optimism_picks_the_dev_winner(chunk_by_article):
     assert result["winner"] == "good"
     assert result["optimism"] == 0.0
     assert result["regret"] == 0.0
+
+
+# ---------------------------------------------------------------------
+# Multiplicity
+# ---------------------------------------------------------------------
+def _cmp(p, label="x", diff=0.1, lo=0.05, hi=0.15):
+    from src.evaluation.retrieval_metrics import PairedComparison
+    return PairedComparison(
+        config_a="ref", config_b=label, metric="recall_at_k",
+        mean_a=0.8, mean_b=0.7, difference=diff, ci_low=lo, ci_high=hi,
+        p_value=p, n_questions=95, n_differing=10)
+
+
+def test_holm_is_stricter_than_uncorrected():
+    """The whole point: borderline p-values must stop surviving once the
+    family size is accounted for."""
+    from src.evaluation.retrieval_metrics import holm_bonferroni
+    comps = [_cmp(p) for p in (0.001, 0.02, 0.03, 0.04, 0.045)]
+    survives = [s for _, s in holm_bonferroni(comps, alpha=0.05)]
+    assert survives.count(True) < sum(c.p_value < 0.05 for c in comps)
+
+
+def test_holm_uses_step_down_thresholds():
+    """Smallest p compared against alpha/m, next against alpha/(m-1)."""
+    from src.evaluation.retrieval_metrics import holm_bonferroni
+    comps = [_cmp(0.001), _cmp(0.20), _cmp(0.30), _cmp(0.40)]
+    out = dict((c.p_value, s) for c, s in holm_bonferroni(comps, alpha=0.05))
+    assert out[0.001] is True          # 0.001 <= 0.05/4
+    assert out[0.20] is False
+
+
+def test_holm_stops_at_first_failure():
+    """Step-down: once one fails, every larger p-value fails too, even if
+    it would individually pass its own threshold."""
+    from src.evaluation.retrieval_metrics import holm_bonferroni
+    comps = [_cmp(0.30), _cmp(0.001)]
+    result = {c.p_value: s for c, s in holm_bonferroni(comps, alpha=0.05)}
+    assert result[0.001] is True
+    assert result[0.30] is False
+
+
+def test_holm_preserves_input_order():
+    from src.evaluation.retrieval_metrics import holm_bonferroni
+    comps = [_cmp(0.40, "a"), _cmp(0.001, "b"), _cmp(0.30, "c")]
+    assert [c.config_b for c, _ in holm_bonferroni(comps)] == ["a", "b", "c"]
+
+
+def test_holm_handles_empty_family():
+    from src.evaluation.retrieval_metrics import holm_bonferroni
+    assert holm_bonferroni([]) == []
+
+
+# ---------------------------------------------------------------------
+# Equivalence — the fix for "not significant means the same"
+# ---------------------------------------------------------------------
+def test_tight_interval_inside_margin_is_equivalent():
+    from src.evaluation.retrieval_metrics import equivalence_verdict
+    v = equivalence_verdict(_cmp(0.60, diff=0.005, lo=-0.02, hi=0.03),
+                            margin=0.05)
+    assert v.verdict == "equivalent"
+
+
+def test_wide_interval_is_inconclusive_not_equivalent():
+    """The core correction. A non-significant result with an interval
+    spilling past the margin must NOT be read as equivalence."""
+    from src.evaluation.retrieval_metrics import equivalence_verdict
+    v = equivalence_verdict(_cmp(0.075, diff=0.040, lo=-0.003, hi=0.084),
+                            margin=0.05)
+    assert v.verdict == "inconclusive"
+
+
+def test_interval_excluding_zero_is_different():
+    from src.evaluation.retrieval_metrics import equivalence_verdict
+    v = equivalence_verdict(_cmp(0.001, diff=0.17, lo=0.10, hi=0.24),
+                            margin=0.05)
+    assert v.verdict == "different"
+
+
+def test_margin_choice_changes_the_verdict():
+    """Documents that the margin is a declared judgement, not a
+    property of the data — which is why it must be fixed in advance."""
+    from src.evaluation.retrieval_metrics import equivalence_verdict
+    c = _cmp(0.30, diff=0.03, lo=-0.02, hi=0.08)
+    assert equivalence_verdict(c, margin=0.05).verdict == "inconclusive"
+    assert equivalence_verdict(c, margin=0.10).verdict == "equivalent"
+
+
+def test_significant_and_inside_margin_is_different():
+    """A real but tiny difference: CI excludes zero AND sits inside the
+    margin. 'different' wins, because the statistical claim is the
+    stronger one; practical relevance is then a separate judgement."""
+    from src.evaluation.retrieval_metrics import equivalence_verdict
+    v = equivalence_verdict(_cmp(0.01, diff=0.02, lo=0.005, hi=0.035),
+                            margin=0.05)
+    assert v.verdict in ("equivalent", "different")

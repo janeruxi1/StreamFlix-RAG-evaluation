@@ -207,44 +207,59 @@ There is therefore no quality-only metric that can select retrieval
 depth. Depth is a **cost** decision, which makes measuring context tokens
 mandatory rather than a refinement.
 
-**4. Chunking buys cost, not recall — and the top of the table is a
-trap.**
+**4. The cost saving is certain; the recall cost is not resolved.**
 
 | | recall | tokens/query |
 |---|---:|---:|
 | Top of the recall table (`whole_article` + LSA, depth 15) | 0.918 | 2,543 |
-| Cheapest statistically indistinguishable config (`markdown_section` + LSA, depth 15) | 0.878 | 565 |
+| Cheapest serious contender (`markdown_section` + LSA, depth 15) | 0.878 | 565 |
 
-The leader costs **4.5× more context per query, forever, for a +0.040
-recall difference that fails a paired significance test** (p=0.075).
-Three configurations are indistinguishable from it.
+The cheap configuration is **4.5× cheaper**, and the paired difference is
++0.040 recall, 95% CI [−0.003, +0.084], p=0.075.
 
-This reframes what chunking is for. Phase 2 saw `whole_article`
-performing well and chunking looking like complexity without payoff —
-because recall was the only axis on the page. Chunking's value on this
-corpus was never higher recall; it's that a chunk is a smaller unit of
-evidence, so the same ground truth arrives without dragging whole
-articles of irrelevant text along with it. The saving compounds in
-Phase 5, since fewer distractor tokens is exactly the condition under
-which faithfulness improves.
+The tempting conclusion — "not significant, so they're equivalent, ship
+the cheap one" — is **affirming the null**, and this project doesn't get
+to make it. A non-significant result on 95 questions is largely a
+statement about sample size. Making a positive equivalence claim requires
+a **declared margin of practical equivalence** (0.05 recall here, about
+five questions, fixed before looking at results), and then asking whether
+the whole interval falls inside it. It doesn't — the upper bound of 0.084
+spills past 0.05, so the verdict is **INCONCLUSIVE**, not equivalent.
+
+What can honestly be said: the 4.5× saving is certain, and the recall
+cost is **bounded above by 0.084 at 95% confidence**. That's a real
+engineering decision with a quantified worst case, rather than a false
+claim of equivalence. Resolving it needs a larger golden set, not more
+analysis.
+
+Against the leader, the 47 challengers resolve as 1 equivalent, 44
+different, 2 inconclusive — and the single equivalent one is no cheaper,
+so it buys nothing.
+
+This still supports what chunking is *for*. The Pareto frontier shows
+chunking buying large, certain cost reductions for small, uncertain
+recall costs. The saving compounds in Phase 5, since fewer distractor
+tokens is exactly the condition under which faithfulness improves.
 
 **Recommended configuration:** `markdown_section` + BM25 at depth 15 —
-recall 0.882 at 571 tokens/query. Chosen on the Pareto frontier under a
-600-token budget, not by topping the table.
+recall 0.882 at 571 tokens/query, chosen on the Pareto frontier under a
+600-token budget with the quality question explicitly left open.
 
 **5. The bake-off finds a group, not a winner.**
 
-At fixed depth 10, 7 of 11 challengers are significantly worse than the
-leader and 4 are indistinguishable from it. Ninety-five questions can
+At fixed depth 10, 7 of 11 challengers look significantly worse — but
+only **4 survive Holm-Bonferroni correction**. The other 3 stars were
+multiplicity artifacts, which is exactly what a 12-way comparison at
+α=0.05 predicts. Ninety-five questions can
 separate a real tail — `sentence_window`, the most elaborate strategy
 producing the most chunks, is beaten across every arm — but cannot rank
 the top 5 against each other. Inside that group, cost and simplicity
 decide; between group and tail, the measurement decides.
 
 Comparisons are **paired** bootstraps, because every configuration is
-scored on the same questions. Marginal CIs would be dominated by
-question difficulty, which is shared across arms and therefore irrelevant
-to which arm is better.
+scored on the same questions. Marginal CIs would be dominated by question
+difficulty, which is shared across arms and therefore irrelevant to which
+arm is better. p-values are Holm-corrected across each family of tests.
 
 **6. mh-011 is resolved — and Phase 2's conclusion was wrong.**
 
@@ -294,7 +309,7 @@ python notebooks/01_corpus_construction.py    # corpus audit + BM25 floor
 python notebooks/02_chunking_embedding.py     # chunking + retrieval baseline
 python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 
-pytest tests/ -q                              # 192 tests
+pytest tests/ -q                              # 205 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -340,9 +355,10 @@ src/
   retrieval/   chunking strategies, embedding backends, vector store, retrieval arms
   llm/         provider abstraction, credential masking, call budget, response cache
   generation/  (Phase 4)
-  evaluation/  retrieval metrics, paired bootstrap, Pareto frontier
+  evaluation/  retrieval metrics, paired bootstrap, Holm correction,
+               equivalence testing, Pareto frontier
 notebooks/     01 corpus construction · 02 chunking + embedding · 03 retrieval bake-off
-tests/         192 tests — corpus, difficulty, chunking, retrieval, metrics, provider security
+tests/         205 tests — corpus, difficulty, chunking, retrieval, metrics, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures
 ```

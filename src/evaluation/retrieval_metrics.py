@@ -256,6 +256,101 @@ def paired_bootstrap(a: list[QuestionScore], b: list[QuestionScore],
 
 
 # ---------------------------------------------------------------------
+# Multiplicity and equivalence
+# ---------------------------------------------------------------------
+def holm_bonferroni(comparisons: list[PairedComparison],
+                    alpha: float = 0.05) -> list[tuple[PairedComparison, bool]]:
+    """Holm-Bonferroni step-down correction over a family of comparisons.
+
+    A bake-off runs one test per challenger. At 60 comparisons and
+    alpha=0.05, roughly three will look significant by chance alone, so
+    an uncorrected table of stars is not evidence — it is a guarantee of
+    false positives.
+
+    Holm is used rather than plain Bonferroni because it is uniformly
+    more powerful while controlling the same family-wise error rate:
+    sort p-values ascending and compare the i-th against alpha/(m-i),
+    stopping at the first failure. Everything after that stays rejected.
+
+    Returns (comparison, survives_correction) pairs in the input order.
+    """
+    if not comparisons:
+        return []
+    m = len(comparisons)
+    order = sorted(range(m), key=lambda i: comparisons[i].p_value)
+    survives = [False] * m
+    for rank, idx in enumerate(order):
+        if comparisons[idx].p_value <= alpha / (m - rank):
+            survives[idx] = True
+        else:
+            break          # step-down: all larger p-values also fail
+    return [(comparisons[i], survives[i]) for i in range(m)]
+
+
+@dataclass(frozen=True)
+class EquivalenceResult:
+    """Three-way verdict on a comparison, against a practical margin."""
+    config_a: str
+    config_b: str
+    difference: float
+    ci_low: float
+    ci_high: float
+    margin: float
+    verdict: str          # "equivalent" | "different" | "inconclusive"
+
+    def __str__(self) -> str:
+        return (f"{self.difference:+.3f} [{self.ci_low:+.3f}, "
+                f"{self.ci_high:+.3f}] vs +/-{self.margin:.3f} "
+                f"-> {self.verdict.upper()}")
+
+
+def equivalence_verdict(comparison: PairedComparison,
+                        margin: float = 0.05) -> EquivalenceResult:
+    """Classify a comparison as equivalent, different, or inconclusive.
+
+    Fixes a real error in how bake-offs are usually read. A
+    non-significant result is NOT evidence that two configurations are
+    the same — with 95 questions the test is underpowered, and failing to
+    reject is mostly a statement about sample size. Concluding
+    "equivalent, so pick the cheaper one" from p>0.05 is affirming the
+    null.
+
+    The honest form needs a margin of practical equivalence: how much
+    recall are we willing to trade for a large cost saving? Then:
+
+      CI entirely inside +/-margin  -> EQUIVALENT   (a positive claim)
+      CI excludes 0                 -> DIFFERENT
+      otherwise                     -> INCONCLUSIVE (underpowered; the
+                                       data cannot distinguish "same"
+                                       from "meaningfully different")
+
+    This is the interval form of two one-sided tests (TOST), and it is
+    the same logic as a ROPE in Bayesian analysis: state the region you
+    consider practically null, then ask whether the interval lies in it.
+
+    `margin` is a judgement call and must be declared before looking at
+    results. 0.05 recall is used here as the default because on a
+    120-question golden set it is about five questions — below that,
+    differences are not actionable for a support deployment.
+    """
+    inside = (comparison.ci_low > -margin) and (comparison.ci_high < margin)
+    excludes_zero = comparison.ci_low > 0 or comparison.ci_high < 0
+
+    if inside:
+        verdict = "equivalent"
+    elif excludes_zero:
+        verdict = "different"
+    else:
+        verdict = "inconclusive"
+
+    return EquivalenceResult(
+        config_a=comparison.config_a, config_b=comparison.config_b,
+        difference=comparison.difference, ci_low=comparison.ci_low,
+        ci_high=comparison.ci_high, margin=margin, verdict=verdict,
+    )
+
+
+# ---------------------------------------------------------------------
 # Cost — the axis that makes retrieval depth a trade-off
 # ---------------------------------------------------------------------
 def context_tokens(hits: list[SearchHit]) -> int:
@@ -356,7 +451,7 @@ def stratified_split(questions: list[dict], test_fraction: float = 0.4,
 
 def selection_optimism(dev_scores: dict[str, list[QuestionScore]],
                        test_scores: dict[str, list[QuestionScore]],
-                       metric: str = "recall_at_k") -> dict[str, float]:
+                       metric: str = "recall_at_k") -> dict[str, object]:
     """Quantify how much the dev-set winner's score was luck.
 
     Returns the winner's dev score, its test score, and the drop. A large

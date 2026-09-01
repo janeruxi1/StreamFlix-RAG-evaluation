@@ -221,9 +221,24 @@ class OracleUnionRetriever(Retriever):
         self.depth = depth
 
     def search(self, query: str, top_k: int = 5) -> list[SearchHit]:
+        """Pooled candidates, best-known score first, truncated to top_k.
+
+        Ordering by each candidate's best score across arms is not a real
+        ranking — the oracle exists to answer "was it in the pool at
+        all", not "where would it rank". But it must still honour top_k,
+        or callers silently receive the whole pool and any metric
+        computed from it is meaningless.
+        """
         seen: dict[str, SearchHit] = {}
         for r in self.retrievers:
             for hit in r.search(query, top_k=self.depth):
-                seen.setdefault(hit.chunk.chunk_id, hit)
+                prev = seen.get(hit.chunk.chunk_id)
+                if prev is None or hit.score > prev.score:
+                    seen[hit.chunk.chunk_id] = hit
+        ordered = sorted(seen.values(), key=lambda h: -h.score)[:top_k]
         return [SearchHit(chunk=h.chunk, score=h.score, rank=i)
-                for i, h in enumerate(seen.values())]
+                for i, h in enumerate(ordered)]
+
+    def pool_size(self, query: str) -> int:
+        """How many distinct chunks the arms produced between them."""
+        return len(self.search(query, top_k=10**9))

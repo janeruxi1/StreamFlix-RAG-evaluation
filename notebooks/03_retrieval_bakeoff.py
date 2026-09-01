@@ -5,9 +5,11 @@ Phase 3 — Retrieval Bake-Off
 Phase 2 built one configuration and measured it. This phase sweeps the
 space and decides what ships.
 
-The sweep is 4 chunking strategies x 3 retrieval arms x 4 depths = 48
-configurations. That count is itself a problem, and most of this notebook
-is about not being fooled by it:
+The sweep is every chunking strategy x retrieval arm x depth. The arm
+count depends on whether sentence-transformers is installed, so the exact
+number of configurations is reported at run time rather than asserted
+here. Whatever it is, the size of the table is itself the problem, and
+most of this notebook is about not being fooled by it:
 
   MONOTONICITY   recall@k cannot decrease as k grows. Sweep k, rank by
                  recall, and the largest k always wins — a fact about
@@ -23,9 +25,16 @@ is about not being fooled by it:
                  bootstraps, because every config is scored on the same
                  questions. Section E.
 
-  SELECTION      The maximum of 48 noisy estimates is biased upward. The
-                 winner is chosen on a dev split and reported on held-out
-                 test, and the gap between them is quantified. Section F.
+  MULTIPLICITY   One test per challenger means dozens of tests. At
+                 alpha=0.05 several will look significant by chance, so
+                 p-values are Holm-Bonferroni corrected. And a
+                 non-significant result is not evidence of equivalence:
+                 claims of "same, so pick the cheaper one" are made
+                 against a declared margin. Sections D and E.
+
+  SELECTION      The maximum of many noisy estimates is biased upward.
+                 The winner is chosen on a dev split and reported on
+                 held-out test, and the gap is quantified. Section F.
 
 One correction to make up front. Phase 1 ran BM25 over whole ARTICLES;
 Phase 2 ran dense retrieval over CHUNKS. Those numbers were never
@@ -73,6 +82,8 @@ from src.evaluation.retrieval_metrics import (
     best_under_budget,
     bootstrap_ci,
     context_tokens,
+    equivalence_verdict,
+    holm_bonferroni,
     paired_bootstrap,
     pareto_frontier,
     score_run,
@@ -309,54 +320,120 @@ for c in frontier:
 # distinguishable from the top scorer's.
 best_raw = df.loc[df["recall"].idxmax()]
 
-candidates = []
+# Declared BEFORE looking at results: how much recall we would trade for
+# a large cost saving. ~0.05 recall is about five questions on this
+# golden set; below that a difference is not actionable for a support
+# deployment. Choosing this after seeing the table would be fitting the
+# conclusion to the data.
+EQUIV_MARGIN = 0.05
+
+verdicts = []
 for r in df.sort_values("tokens").itertuples():
     if r.config == best_raw["config"]:
         continue
     cmp = paired_bootstrap(
         per_question[best_raw["config"]], per_question[r.config],
-        metric="recall_at_k", label_a="top", label_b=r.config)
-    if not cmp.significant:
-        candidates.append((r, cmp))
+        metric="recall_at_k", label_a=best_raw["config"], label_b=r.config)
+    verdicts.append((r, cmp, equivalence_verdict(cmp, margin=EQUIV_MARGIN)))
+
+equivalent = [(r, c, v) for r, c, v in verdicts if v.verdict == "equivalent"]
+inconclusive = [(r, c, v) for r, c, v in verdicts if v.verdict == "inconclusive"]
 
 print(f"""
   Highest recall overall : {best_raw.recall:.3f}  {best_raw.config}
                            costing {best_raw.tokens:.0f} tokens/query
+
+  A caveat that decides how this section can be read. "Not statistically
+  significant" is NOT evidence that two configurations are the same. On
+  {len(in_scope)} questions the test is underpowered, so failing to reject is
+  mostly a statement about sample size. Picking the cheaper option
+  because p > 0.05 is affirming the null.
+
+  Making a positive claim requires a declared margin of practical
+  equivalence — here {EQUIV_MARGIN:.2f} recall, about five questions, fixed before
+  looking at the table. Then each comparison resolves three ways:
+
+    EQUIVALENT    CI lies entirely inside +/-{EQUIV_MARGIN:.2f}  -> safe to prefer on cost
+    DIFFERENT     CI excludes zero
+    INCONCLUSIVE  neither -> the data cannot tell
+
+  Against the leader, {len(df) - 1} challengers resolve as:
+    equivalent   : {len(equivalent)}
+    different    : {sum(1 for _, _, v in verdicts if v.verdict == 'different')}
+    inconclusive : {len(inconclusive)}
 """)
 
-if candidates:
-    cheap, cheap_cmp = candidates[0]
+# An equivalence claim is only USEFUL if the equivalent configuration is
+# also meaningfully cheaper. A config that matches the leader at the same
+# cost tells us nothing about the cost/quality trade-off.
+MEANINGFUL_SAVING = 1.5          # at least 1.5x fewer tokens
+
+useful = [(r, c, v) for r, c, v in equivalent
+          if best_raw.tokens / r.tokens >= MEANINGFUL_SAVING]
+
+if equivalent:
+    eq, eq_cmp, eq_v = equivalent[0]
+    print(f"""  Cheapest configuration demonstrably EQUIVALENT to the leader:
+
+    {eq.config}
+    recall {eq.recall:.3f} at {eq.tokens:.0f} tokens/query  ({best_raw.tokens / eq.tokens:.1f}x cheaper)
+    {eq_v}
+""")
+
+if useful:
+    cheap, cheap_cmp, cheap_v = useful[0]
     ratio = best_raw.tokens / cheap.tokens
-    print(f"""  Cheapest configuration NOT statistically distinguishable from it:
+    print(f""">>> HEADLINE — the top of the recall table costs {ratio:.1f}x more context than a
+    configuration demonstrably equivalent to it.
+
+  The whole confidence interval on the difference sits inside the margin
+  declared as practically irrelevant. That is a positive claim of
+  equivalence, not an absence of evidence — which is what licenses
+  choosing on cost.
+""")
+else:
+    cheap, cheap_cmp, cheap_v = (inconclusive or verdicts)[0]
+    ratio = best_raw.tokens / cheap.tokens
+    print(f""">>> HEADLINE — and it is a NEGATIVE one, which is the honest result here.
+
+  No configuration that is meaningfully cheaper than the leader is
+  demonstrably equivalent to it. The cheapest serious contender:
 
     {cheap.config}
-    recall {cheap.recall:.3f} at {cheap.tokens:.0f} tokens/query
-    paired difference {cheap_cmp.difference:+.3f} [{cheap_cmp.ci_low:+.3f}, {cheap_cmp.ci_high:+.3f}], p={cheap_cmp.p_value:.3f}
+    recall {cheap.recall:.3f} at {cheap.tokens:.0f} tokens/query  ({ratio:.1f}x cheaper)
+    {cheap_v}
 
->>> HEADLINE — the top of the recall table costs {ratio:.1f}x more context for a
-    difference that does not survive a significance test.
+  Its interval reaches beyond the {EQUIV_MARGIN:.2f} margin, so it lands as
+  INCONCLUSIVE. {len(in_scope)} questions cannot resolve whether a {ratio:.1f}x cost
+  saving costs meaningful recall.
 
-  {len(candidates)} of {len(df) - 1} configurations are indistinguishable from the leader on
-  {len(in_scope)} questions. Ranking that table by recall and shipping row one means
-  paying {ratio:.1f}x the token cost, on every query forever, for {cheap_cmp.difference:+.3f} recall
-  that is inside noise.
+  This overturns the reading an uncorrected table invites. Ranked by
+  raw p-values, that configuration was "not significantly different"
+  (p={cheap_cmp.p_value:.3f}) and the tempting conclusion was "equivalent — ship the
+  cheap one, {ratio:.1f}x saving". That conclusion was affirming the null. Once
+  a margin is declared, the same data says only that the question is
+  open.
 
-  This also reframes what chunking is for. Phase 2 saw whole_article
-  performing well and chunking looking like complexity without payoff —
-  because recall was the only axis on the page. Chunking's value on this
-  corpus was never higher recall. It is that a chunk is a smaller unit
-  of evidence, so the same ground truth arrives without dragging whole
-  articles of irrelevant text along with it.
+  What can still be said, and it is not nothing:
+
+    - The {ratio:.1f}x cost saving is certain; the recall cost is uncertain
+      and bounded above by {abs(cheap_cmp.ci_high):.3f} recall at 95% confidence.
+    - That is a genuine engineering decision with a quantified worst
+      case, rather than a false claim of equivalence.
+    - Resolving it needs a larger golden set, not more analysis. The
+      honest handoff is the bound, not a verdict.
+""")
+
+print(f"""  On what chunking is for, the picture does survive. Phase 2 saw
+  whole_article performing well and chunking looking like complexity
+  without payoff, because recall was the only axis on the page. The
+  frontier above shows chunking buying large, certain cost reductions
+  for small, uncertain recall costs — which is a real benefit even
+  without an equivalence claim.
 
   The saving compounds in Phase 5: fewer distractor tokens is precisely
   the condition under which faithfulness improves. Retrieval cost and
   generation quality are not independent axes.
-""")
-else:
-    cheap = None
-    print("""  Every other configuration is statistically distinguishable from the
-  leader, so the recall ranking is doing real work here and the top
-  configuration is defensible on quality alone.
 """)
 
 print("  Best achievable recall under a fixed budget:\n")
@@ -433,31 +510,54 @@ dominated by that shared difficulty and would badly understate power.
 FIXED_DEPTH = 10
 at_depth = df[df["depth"] == FIXED_DEPTH]
 ref = at_depth.loc[at_depth["recall"].idxmax()]
-print(f"  Reference (best at depth={FIXED_DEPTH}): {ref.config}\n")
-print(f"  {'challenger':<46}{'delta':>8}{'95% CI':>20}{'p':>7}")
-print("  " + "-" * 82)
 
-comparisons = []
+raw_comparisons = []
 for _, row in at_depth.iterrows():
     if row.config == ref.config:
         continue
-    cmp = paired_bootstrap(
+    raw_comparisons.append(paired_bootstrap(
         per_question[ref.config], per_question[row.config],
-        metric="recall_at_k", label_a=ref.config, label_b=row.config)
-    comparisons.append((row.config, cmp))
+        metric="recall_at_k", label_a=ref.config, label_b=row.config))
 
-comparisons.sort(key=lambda t: t[1].difference)
-for config, cmp in comparisons:
-    star = "*" if cmp.significant else " "
-    print(f"  {config:<46}{-cmp.difference:>+8.3f}"
-          f"  [{-cmp.ci_high:>+.3f}, {-cmp.ci_low:>+.3f}]{cmp.p_value:>7.3f}{star}")
+# Family-wise correction. This section alone runs one test per
+# challenger, and Section D ran one per configuration — at ~60 tests and
+# alpha=0.05, about three will look significant by chance. An
+# uncorrected column of stars is not evidence.
+corrected = holm_bonferroni(raw_comparisons, alpha=0.05)
+corrected.sort(key=lambda t: t[0].difference)
 
-n_sig = sum(1 for _, c in comparisons if c.significant)
-n_tied = len(comparisons) - n_sig
+print(f"""  Reference (best at depth={FIXED_DEPTH}): {ref.config}
+
+  p-values are Holm-Bonferroni corrected across the {len(raw_comparisons)} comparisons in
+  this family. Holm rather than plain Bonferroni because it controls the
+  same family-wise error rate while being uniformly more powerful.
+""")
+print(f"  {'challenger':<44}{'delta':>8}{'95% CI':>20}{'p':>7}  Holm")
+print("  " + "-" * 87)
+for cmp, survives in corrected:
+    mark = "*" if survives else ("(raw)" if cmp.significant else "")
+    print(f"  {cmp.config_b:<44}{-cmp.difference:>+8.3f}"
+          f"  [{-cmp.ci_high:>+.3f}, {-cmp.ci_low:>+.3f}]{cmp.p_value:>7.3f}  {mark}")
+
+n_sig = sum(1 for _, s in corrected if s)
+n_raw = sum(1 for c, _ in corrected if c.significant)
+n_tied = len(corrected) - n_sig
+comparisons = [(c.config_b, c) for c, _ in corrected]
 print(f"""
-  * = 95% CI on the paired difference excludes zero
-  {n_sig} of {len(comparisons)} challengers are distinguishable from the reference;
-  {n_tied} are not.
+  *     = survives Holm correction
+  (raw) = would have been called significant WITHOUT correction
+
+  {n_raw} challengers look significant uncorrected; {n_sig} survive Holm.
+  {n_raw - n_sig} of the original stars were multiplicity artifacts — exactly the
+  false positives a 12-way comparison at alpha=0.05 predicts.
+
+  One further caveat on this table. The reference was chosen as the
+  BEST configuration at this depth, so it sits at the top of a noisy
+  ranking and every comparison is made against a value that was
+  selected for being high. That inflates the apparent gaps somewhat;
+  the direction of the bias is known and it works against the
+  challengers, so surviving comparisons are conservative rather than
+  optimistic.
 """)
 
 if n_tied:
@@ -636,16 +736,17 @@ Swept {len(df)} configurations. Four things came out of it.
    arithmetic dressed as evidence. Depth was selected against context
    cost instead.
 
-2. CHUNKING BUYS COST, NOT RECALL.
+2. CHUNKING BUYS LARGE CERTAIN SAVINGS FOR SMALL UNCERTAIN COSTS.
    Top of the recall table : {best_raw.recall:.3f} at {best_raw.tokens:.0f} tokens/query
-   Cheapest indistinguishable
-   configuration           : {cheap.recall:.3f} at {cheap.tokens:.0f} tokens/query
-   Paying {best_raw.tokens / cheap.tokens:.1f}x the context for a recall difference that fails a
-   significance test is not a trade-off worth making.
+   Cheapest contender      : {cheap.recall:.3f} at {cheap.tokens:.0f} tokens/query ({best_raw.tokens / cheap.tokens:.1f}x cheaper)
+   Verdict against a declared {EQUIV_MARGIN:.2f} margin: {cheap_v.verdict.upper()}.
+   The saving is certain; the recall cost is bounded above by {abs(cheap_cmp.ci_high):.3f}
+   at 95% confidence but not resolved. Calling these "equivalent"
+   because p={cheap_cmp.p_value:.3f} would be affirming the null.
 
 3. THE BAKE-OFF FINDS A GROUP, NOT A WINNER.
-   At depth {FIXED_DEPTH}, {n_sig} of {len(comparisons)} challengers are significantly worse than
-   the leader and {n_tied} are indistinguishable from it. So the sweep does
+   At depth {FIXED_DEPTH}, {n_raw} challengers look significantly worse before
+   correction and {n_sig} survive Holm; {n_tied} are not separable. So the sweep does
    separate a real tail — sentence_window is beaten across every arm —
    but it cannot rank the top {n_tied + 1} configurations against each other on
    {len(in_scope)} questions. Inside that group, cost and simplicity decide;
@@ -672,8 +773,7 @@ RECOMMENDED CONFIGURATION (<=600 token budget):
    leader and costs {best_raw.tokens / rec.mean_tokens:.1f}x less context per query.
 
    Section D named {cheap.config}
-   as the cheapest configuration statistically indistinguishable from
-   the leader. The two differ by {abs(rec.recall - cheap.recall):.3f} recall and {abs(rec.mean_tokens - cheap.tokens):.0f} tokens —
+   as the cheapest serious contender. The two differ by {abs(rec.recall - cheap.recall):.3f} recall and {abs(rec.mean_tokens - cheap.tokens):.0f} tokens —
    the same choice for practical purposes. The budget rule picks the
    lexical arm because it scores marginally higher for marginally more
    context; either is defensible, and preferring one on that margin

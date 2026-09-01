@@ -211,3 +211,25 @@ def test_oracle_recall_is_an_upper_bound(articles, bm25, dense):
     pool = set(hits_to_articles(oracle.search(q, top_k=999)))
     for arm in (bm25, dense):
         assert set(hits_to_articles(arm.search(q, top_k=20))) <= pool
+
+
+def test_oracle_respects_top_k(bm25, dense):
+    """Regression: the oracle used to ignore top_k and return the whole
+    pool, so any metric computed from it was silently meaningless."""
+    oracle = OracleUnionRetriever([bm25, dense], depth=20)
+    assert len(oracle.search("cancel subscription", top_k=5)) == 5
+    assert len(oracle.search("cancel subscription", top_k=1)) == 1
+
+
+def test_oracle_pool_size_exceeds_top_k(bm25, dense):
+    oracle = OracleUnionRetriever([bm25, dense], depth=20)
+    q = "cancel subscription"
+    assert oracle.pool_size(q) > len(oracle.search(q, top_k=5))
+
+
+def test_oracle_ranks_by_best_score_across_arms(bm25, dense):
+    oracle = OracleUnionRetriever([bm25, dense], depth=20)
+    hits = oracle.search("refund policy", top_k=10)
+    assert [h.score for h in hits] == sorted([h.score for h in hits],
+                                             reverse=True)
+    assert [h.rank for h in hits] == list(range(len(hits)))
