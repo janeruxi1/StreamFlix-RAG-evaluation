@@ -10,8 +10,8 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable. The retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-> **Status: in progress.** Phases 1–4 of 7 are complete and tested.
-> Phases 5–7 are not built yet. The roadmap below marks exactly where the
+> **Status: in progress.** Phases 1–5 of 7 are complete and tested.
+> Phases 6–7 are not built yet. The roadmap below marks exactly where the
 > line is. Nothing in this README describes results that don't exist.
 
 ---
@@ -190,6 +190,58 @@ alongside every answer, so a wrong answer with zero retrieval recall is
 identifiable as an upstream failure rather than a hallucination — the
 distinction Phase 3 flagged and Phase 6 depends on.
 
+### Phase 5 — The evaluation harness ✅
+
+Four metrics in the RAGAS tradition — context precision, context recall,
+faithfulness, answer relevancy — with one deliberate departure and one
+addition.
+
+**The departure: two of the four need no LLM.** RAGAS computes all four
+with a judge because it assumes no ground-truth labels. This project has
+exact labels — every golden question names its source articles — so
+context precision and recall are *computed*, not estimated. Using a model
+to approximate a quantity you can calculate is worse on every axis:
+noisier, priced per question, not reproducible across model versions, and
+it injects the judge's error into a number that had none. It also means a
+credential outage degrades the harness instead of stopping it.
+
+**The addition: the judge is validated before it is believed.** The
+standard practice is to report faithfulness to three decimals from a model
+whose agreement with ground truth was never measured — an unknown error
+rate hiding inside the headline number. Here the judge first faces 9 cases
+whose correct verdict follows from how they were written (supported,
+fabricated, contradicted, refusal, off-topic), and scores below 80%
+disqualify its numbers.
+
+The keyless `LexicalJudge` scores **50%** and fails the gate — which is
+exactly why it's in the repo. It rates contradictions as *fully faithful*,
+because a contradicting sentence reuses nearly every term of the context
+it contradicts, and it rates refusals as maximally unfaithful because they
+share no vocabulary. Neither is fixable by tuning a threshold; they're
+what "semantic" means. That's the argument for paying for an LLM judge
+made by measurement rather than assertion.
+
+**Context precision must be read against its ceiling.** The raw 0.211
+looks alarming until you notice the ceiling is 0.441, not 1.0 — articles
+split into ~4.5 chunks, so a single-article question retrieved at depth 15
+can only ever fill ~4.5 of 15 slots with relevant material. The rest
+*must* be irrelevant. Per category:
+
+| Category | recall | precision | ceiling | % of max |
+|---|---:|---:|---:|---:|
+| `single_hop` | 0.983 | 0.186 | 0.292 | 63% |
+| `multi_hop` | 0.817 | 0.313 | 0.620 | 51% |
+| `ambiguous` | 0.561 | 0.178 | 0.800 | **22%** |
+
+Reading the columns together inverts the raw story. `single_hop` looks
+worst on precision but is *nearest* its limit. The real weak spot is
+`ambiguous`, which has the most relevant material available and finds the
+least of it — invisible in the raw numbers, where it and `single_hop` look
+almost identical. Combined with its weak recall, the pattern says the
+system isn't failing to *rank* the right articles; it's failing to work
+out which articles an underspecified question is about. That's query
+understanding, and no amount of retrieval or prompt tuning fixes it.
+
 ---
 
 ## Findings so far
@@ -339,7 +391,7 @@ five confident, on-topic, wrong chunks.
 | 2. Chunking, embeddings, retrieval baseline | ✅ Complete |
 | 3. Retrieval bake-off — strategy × backend × depth, BM25 as a first-class arm | ✅ Complete |
 | 4. Generation layer — prompting, grounding, refusal behaviour | ✅ Complete |
-| 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | Not started |
+| 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | ✅ Complete |
 | 6. LLM-as-judge + failure analysis | Not started |
 | 7. Decision memo + deployment recommendation | Not started |
 
@@ -360,8 +412,9 @@ python notebooks/01_corpus_construction.py    # corpus audit + BM25 floor
 python notebooks/02_chunking_embedding.py     # chunking + retrieval baseline
 python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
+python notebooks/05_evaluation.py             # eval harness (no key needed)
 
-pytest tests/ -q                              # 253 tests
+pytest tests/ -q                              # 280 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -409,10 +462,11 @@ src/
   generation/  prompt variants, RAG pipeline, refusal detection,
                extractive non-LLM baseline
   evaluation/  retrieval metrics, paired bootstrap, Holm correction,
-               equivalence testing, Pareto frontier
+               equivalence testing, Pareto frontier, LLM judge,
+               judge validation suite, RAG metrics
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
-               04 generation, grounding + refusal
-tests/         253 tests — corpus, difficulty, chunking, retrieval, metrics,
+               04 generation, grounding + refusal · 05 evaluation harness
+tests/         280 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures
