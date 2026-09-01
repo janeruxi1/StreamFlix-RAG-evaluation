@@ -126,7 +126,7 @@ def test_variants_form_a_ladder_of_increasing_instruction():
     rungs = ("naive", "grounded", "grounded_refusal", "cited", "strict")
     lengths = [len(VARIANTS[n].template) for n in rungs]
     assert lengths == sorted(lengths)
-    assert len(rungs) == len(VARIANTS), "a variant is missing from the ladder"''
+    assert len(rungs) == len(VARIANTS), "a variant is missing from the ladder"
 
 
 def test_citation_variants_are_marked():
