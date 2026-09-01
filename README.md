@@ -10,8 +10,8 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable. The retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-> **Status: in progress.** Phases 1–3 of 7 are complete and tested.
-> Phases 4–7 are not built yet. The roadmap below marks exactly where the
+> **Status: in progress.** Phases 1–4 of 7 are complete and tested.
+> Phases 5–7 are not built yet. The roadmap below marks exactly where the
 > line is. Nothing in this README describes results that don't exist.
 
 ---
@@ -138,6 +138,48 @@ comparison properly.
 
 Most of the phase is about not being fooled by a 48-row table. See the
 findings below.
+
+### Phase 4 — Generation, grounding & refusal ✅
+
+Five prompt variants forming a ladder — `naive` → `grounded` →
+`grounded_refusal` → `cited` → `strict` — each adding exactly one
+mechanism so its contribution is attributable.
+
+Everything measured in this phase is **judge-free**: every metric is a
+regex, a set operation, or a count. Cheap deterministic checks are
+exhausted before paying for an LLM judge, and they already catch the
+failures that decide deployability — answering when it should refuse,
+refusing when it should answer, and citing sources it was never shown.
+Answer *correctness* needs a judge and is deferred to Phase 5.
+
+**An extractive baseline the LLM has to beat.** A non-LLM answerer picks
+sentences from retrieved context by IDF-weighted term overlap and refuses
+below a threshold (tuned on the dev split only). It exists so "the LLM
+answers well" is a measurable claim rather than an assumption — and it
+keeps the whole phase runnable in CI with no API key. It reaches 62.1%
+answer rate in-scope and 56.0% refusal on out-of-scope, F1 0.589, at
+~7ms and zero cost per question. Its weaknesses are the point: it cannot
+synthesise across articles, paraphrase, or detect contradictions, which
+is exactly the list of things an LLM is being paid to add.
+
+**The central tension.** Every instruction that makes a model more
+willing to refuse also makes it refuse questions it could have answered.
+There is no prompt that wins both ends, so every variant is scored on a
+*pair* of rates — refusal on the 25 out-of-scope questions and answer
+rate on the 95 in-scope ones — and neither is reported alone. The
+baseline's threshold sweep shows the same trade-off through a single
+knob: raising it from 0.15 to 0.50 lifts out-of-scope refusal from 33% to
+80% while dropping in-scope answering from 100% to 37%.
+
+**Partial refusals count as answers.** "I don't have specific details,
+but generally…" is the most dangerous response shape there is — it reads
+as appropriate caution while still making unsupported claims. Scoring it
+as a refusal would hide precisely the behaviour worth catching.
+
+**Blame attribution is built in.** The pipeline keeps retrieved chunks
+alongside every answer, so a wrong answer with zero retrieval recall is
+identifiable as an upstream failure rather than a hallucination — the
+distinction Phase 3 flagged and Phase 6 depends on.
 
 ---
 
@@ -287,7 +329,7 @@ five confident, on-topic, wrong chunks.
 | 1. Corpus + golden set | ✅ Complete |
 | 2. Chunking, embeddings, retrieval baseline | ✅ Complete |
 | 3. Retrieval bake-off — strategy × backend × depth, BM25 as a first-class arm | ✅ Complete |
-| 4. Generation layer — prompting, grounding, refusal behaviour | Not started |
+| 4. Generation layer — prompting, grounding, refusal behaviour | ✅ Complete |
 | 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | Not started |
 | 6. LLM-as-judge + failure analysis | Not started |
 | 7. Decision memo + deployment recommendation | Not started |
@@ -308,8 +350,9 @@ python -c "from src.corpus.build import write_corpus, write_golden_set; write_co
 python notebooks/01_corpus_construction.py    # corpus audit + BM25 floor
 python notebooks/02_chunking_embedding.py     # chunking + retrieval baseline
 python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
+python notebooks/04_generation.py             # grounding + refusal (no key needed)
 
-pytest tests/ -q                              # 205 tests
+pytest tests/ -q                              # 245 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -354,11 +397,14 @@ src/
   corpus/      seed articles, golden set, corpus build + BM25 difficulty analysis
   retrieval/   chunking strategies, embedding backends, vector store, retrieval arms
   llm/         provider abstraction, credential masking, call budget, response cache
-  generation/  (Phase 4)
+  generation/  prompt variants, RAG pipeline, refusal detection,
+               extractive non-LLM baseline
   evaluation/  retrieval metrics, paired bootstrap, Holm correction,
                equivalence testing, Pareto frontier
-notebooks/     01 corpus construction · 02 chunking + embedding · 03 retrieval bake-off
-tests/         205 tests — corpus, difficulty, chunking, retrieval, metrics, provider security
+notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
+               04 generation, grounding + refusal
+tests/         245 tests — corpus, difficulty, chunking, retrieval, metrics,
+               generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures
 ```
