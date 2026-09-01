@@ -311,10 +311,31 @@ if not report.is_trustworthy:
 """)
 
 print(f"""
-  answerer      : {report_run.answerer}
-  faithfulness  : {report_run.faithfulness:.3f}
-  relevancy     : {report_run.relevancy:.3f}
-  correctness   : {report_run.correctness:.3f}
+  answerer                       : {report_run.answerer}
+  faithfulness (answered only)   : {report_run.faithfulness:.3f}   <- headline
+  faithfulness (all questions)   : {report_run.faithfulness_all:.3f}
+  relevancy                      : {report_run.relevancy:.3f}
+  correctness                    : {report_run.correctness:.3f}
+
+  answered {report_run.n_answered} of {report_run.n} questions; the rest were refusals.
+
+>>> Faithfulness is reported over ANSWERED questions only, and the gap
+    between the two lines above is why.
+
+  A refusal asserts nothing, so a correct judge scores it vacuously
+  faithful at 1.0. Averaging refusals in therefore rewards a system for
+  declining to be useful — and taken to its limit, a system that refuses
+  every question reports PERFECT faithfulness while answering nothing.
+
+  The answered-only figure means what people think faithfulness means:
+  when this system does make claims, how often are they supported. The
+  all-questions figure is kept visible rather than deleted so the
+  inflation is auditable rather than hidden.
+
+  (Here the two run in the opposite direction, because the lexical judge
+  scores refusals near ZERO rather than 1.0 — one of the failures
+  Section B catches. With a judge that handles refusals correctly, the
+  all-questions number would sit ABOVE the answered-only one.)
 """)
 
 print("  Failure modes across all 120 questions:\n")
@@ -359,7 +380,34 @@ for bucket, n in table.items():
 
 gen_fail = table["evidence+unfaithful"]
 ret_fail = table["no_evidence+unfaithful"]
-print(f"""
+
+if gen_fail + ret_fail == 0:
+    print(f"""
+>>> Zero unfaithful answers — and that is a statement about the PAIRING,
+    not about quality.
+
+  The extractive baseline builds answers by copying sentences out of the
+  retrieved context verbatim. The lexical judge scores faithfulness by
+  term overlap with that same context. A copier judged by overlap is
+  faithful by construction: it is not passing a hard test, it is exempt
+  from the test.
+
+  This is the same category error as the extractive baseline's perfect
+  citation precision in Phase 4 — a metric measuring the architecture
+  rather than the behaviour. Reporting 1.000 faithfulness here as
+  evidence the system is trustworthy would be exactly the mistake
+  Section B's gate exists to catch.
+
+  The attribution table only becomes informative when BOTH sides can
+  fail: a generator that paraphrases (so it can drift from the source)
+  and a judge that reads meaning (so it can notice). That needs an LLM
+  on both ends, which is what a credential unlocks.
+
+  The machinery is verified — the buckets populate, refusals and
+  out-of-scope rows are correctly excluded — but the finding is pending.
+""")
+else:
+    print(f"""
   Of the unfaithful answers, {gen_fail} had the evidence available and {ret_fail} did
   not. Only the first group is addressable by changing the generator.
 
@@ -436,7 +484,20 @@ print(f"""
 4. FAILURES ARE ATTRIBUTED, NOT AGGREGATED.
    {gen_fail} generation failures and {ret_fail} retrieval failures among unfaithful
    answers. A single hallucination rate would merge them and send the
-   fix to whichever component was guessed.
+   fix to whichever component was guessed.{'''
+   Both are zero here because a verbatim copier judged by term overlap
+   cannot be unfaithful — the machinery is verified, the finding waits
+   on a paraphrasing generator and a semantic judge.''' if gen_fail + ret_fail == 0 else ''}
+
+5. TWO METRIC DEFINITIONS THAT DECIDE WHAT THE NUMBERS MEAN.
+   The judge is shown the context in exactly the form the generator saw
+   it, article-id tags included. Stripping them makes every citation an
+   unverifiable claim, which penalises precisely the prompt variants
+   that follow the citation instruction.
+
+   Faithfulness covers answered questions only ({report_run.faithfulness:.3f}), not all of
+   them ({report_run.faithfulness_all:.3f}). Refusals are vacuously faithful, so including
+   them lets a system that answers nothing report a perfect score.
 
 {'' if has_key else '''NOT YET MEASURED — no credential, so the LEXICAL judge ran and failed
 validation as designed. Section D's scores are harness output, not

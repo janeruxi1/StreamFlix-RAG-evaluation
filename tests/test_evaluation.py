@@ -296,3 +296,88 @@ def test_end_to_end_evaluation_runs_without_a_credential():
     rep = aggregate_run(evaluate_run(pipe.run(golden), judge=LexicalJudge()))
     assert rep.n == 12
     assert rep.judged
+
+
+# ---------------------------------------------------------------------
+# Regressions from the Phase 5 review
+# ---------------------------------------------------------------------
+def test_judge_sees_the_same_context_the_generator_saw(by_article):
+    """Regression: the judge was passed bare chunk text with article ids
+    stripped, while the generator saw id-tagged blocks.
+
+    An answer citing [bill-001] then handed the judge a token absent from
+    its context — an unsupported claim by construction. The bias is
+    systematic and directional: it penalises exactly the prompt variants
+    that comply with the citation instruction.
+    """
+    captured = {}
+
+    class Recording(LexicalJudge):
+        name = "recording"
+        def faithfulness(self, answer, context):
+            captured["context"] = context
+            return Judgement("faithfulness", 1.0)
+
+    r = result(gt=("bill-001",), retrieved=("bill-001", "dev-001"),
+               answer="A claim [bill-001].", by_article=by_article)
+    evaluate_run([r], judge=Recording())
+
+    for article_id in ("bill-001", "dev-001"):
+        assert f"[{article_id}]" in captured["context"], \
+            "judge context must carry article ids, as the generator's did"
+
+
+def test_cited_answer_is_not_penalised_for_its_citation(by_article):
+    """The consequence of the bug above, stated as a behaviour: every id
+    an answer can legitimately cite must be present in the judge's view
+    of the context."""
+    r = result(gt=("bill-001",), retrieved=("bill-001",),
+               answer="Premium costs $19.99 [bill-001].", by_article=by_article)
+    ev = evaluate_run([r], judge=LexicalJudge())[0]
+    cited = ev.result.citations
+    assert cited == ["bill-001"]
+    assert all(c in ev.result.context_article_ids for c in cited)
+
+
+def test_faithfulness_excludes_refusals_from_the_headline_mean(by_article):
+    """Regression: refusals were averaged into faithfulness.
+
+    A refusal asserts nothing, so a correct judge scores it vacuously
+    faithful at 1.0 — meaning a system that refuses everything would
+    report perfect faithfulness. The headline number must cover answered
+    questions only.
+    """
+    class RefusalIsFaithful(LexicalJudge):
+        name = "vacuous"
+        def faithfulness(self, answer, context):
+            from src.generation.refusal import is_refusal
+            return Judgement("faithfulness", 1.0 if is_refusal(answer) else 0.2)
+
+    rows = [
+        result(gt=("bill-001",), retrieved=("bill-001",),
+               answer=CANONICAL_REFUSAL, by_article=by_article),
+        result(gt=("bill-001",), retrieved=("bill-001",),
+               answer="An unsupported claim.", by_article=by_article),
+    ]
+    rep = aggregate_run(evaluate_run(rows, judge=RefusalIsFaithful()))
+
+    assert rep.n_answered == 1
+    assert rep.faithfulness == pytest.approx(0.2)        # answered only
+    assert rep.faithfulness_all == pytest.approx(0.6)    # inflated by refusal
+    assert rep.faithfulness < rep.faithfulness_all
+
+
+def test_refuse_everything_does_not_score_perfect_faithfulness(by_article):
+    """The limiting case the fix exists to prevent."""
+    class RefusalIsFaithful(LexicalJudge):
+        name = "vacuous"
+        def faithfulness(self, answer, context):
+            return Judgement("faithfulness", 1.0)
+
+    rows = [result(gt=("bill-001",), retrieved=("bill-001",),
+                   answer=CANONICAL_REFUSAL, by_article=by_article)
+            for _ in range(5)]
+    rep = aggregate_run(evaluate_run(rows, judge=RefusalIsFaithful()))
+    assert rep.n_answered == 0
+    assert rep.faithfulness != rep.faithfulness or rep.faithfulness == 0.0 \
+        or str(rep.faithfulness) == "nan"   # undefined, not 1.0

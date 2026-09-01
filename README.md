@@ -213,6 +213,15 @@ whose correct verdict follows from how they were written (supported,
 fabricated, contradicted, refusal, off-topic), and scores below 80%
 disqualify its numbers.
 
+Two metric definitions decide what the numbers mean, and both were
+corrected during review. The judge is shown context in *exactly* the form
+the generator saw it, article-id tags included — stripping them turns
+every citation into an unverifiable claim and penalises precisely the
+prompt variants that follow the citation instruction. And faithfulness
+covers *answered* questions only: a refusal asserts nothing, so a correct
+judge scores it vacuously faithful at 1.0, meaning a system that refuses
+everything would report a perfect score.
+
 The keyless `LexicalJudge` scores **50%** and fails the gate — which is
 exactly why it's in the repo. It rates contradictions as *fully faithful*,
 because a contradicting sentence reuses nearly every term of the context
@@ -414,7 +423,7 @@ python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
 python notebooks/05_evaluation.py             # eval harness (no key needed)
 
-pytest tests/ -q                              # 280 tests
+pytest tests/ -q                              # 284 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -466,7 +475,7 @@ src/
                judge validation suite, RAG metrics
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
-tests/         280 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         284 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures

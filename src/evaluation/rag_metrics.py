@@ -49,6 +49,7 @@ import numpy as np
 
 from src.evaluation.judge import Judge, Judgement
 from src.generation.pipeline import RAGResult
+from src.generation.prompts import format_context
 
 
 # ---------------------------------------------------------------------
@@ -170,11 +171,26 @@ class EvaluatedAnswer:
 
 def evaluate_answer(result: RAGResult, judge: Judge | None,
                     reference: str | None = None) -> EvaluatedAnswer:
-    """Score one answer. Context metrics always; judged metrics if a judge."""
+    """Score one answer. Context metrics always; judged metrics if a judge.
+
+    The judge is shown the context in EXACTLY the form the generator saw
+    it, article-id tags included. That is not cosmetic.
+
+    An earlier version passed bare chunk text with the ids stripped. An
+    answer citing "[bill-007]" then presented the judge with a token
+    absent from its context, which a careful judge should mark as an
+    unsupported claim. The effect is systematic and directional: it
+    deflates faithfulness for precisely the prompt variants that follow
+    the citation instruction, so the `cited` and `strict` rungs of the
+    Phase 4 ladder would have been penalised for complying with it.
+
+    Evaluating against a different context than the model was given is
+    not evaluating the model.
+    """
     if judge is None:
         return EvaluatedAnswer(result=result)
 
-    context = "\n\n".join(h.chunk.generation_text for h in result.hits)
+    context = format_context(result.hits)
     return EvaluatedAnswer(
         result=result,
         faithfulness=judge.faithfulness(result.answer, context),
@@ -207,12 +223,25 @@ def _mean(values: list[float | None]) -> float:
 
 @dataclass(frozen=True)
 class RunReport:
-    """Aggregate scores for one answerer."""
+    """Aggregate scores for one answerer.
+
+    `faithfulness` deliberately covers ANSWERED questions only. A refusal
+    asserts nothing, so a correct judge scores it vacuously faithful at
+    1.0 — which means averaging refusals in rewards a system for
+    declining to be useful. Taken to its limit, a system that refuses
+    every question reports perfect faithfulness.
+
+    `faithfulness_all` keeps the all-questions figure so the difference
+    is visible rather than hidden, but the answered-only number is the
+    one that means "when this system makes claims, are they supported".
+    """
     answerer: str
     n: int
+    n_answered: int
     context_precision: float
     context_recall: float
-    faithfulness: float
+    faithfulness: float            # answered questions only
+    faithfulness_all: float        # including refusals — inflated
     relevancy: float
     correctness: float
     judged: bool
@@ -222,8 +251,8 @@ class RunReport:
         judged = "" if self.judged else "  (context metrics only — no judge)"
         return (f"{self.answerer}: ctx_prec={self.context_precision:.3f} "
                 f"ctx_rec={self.context_recall:.3f} "
-                f"faith={self.faithfulness:.3f} rel={self.relevancy:.3f}"
-                f"{judged}")
+                f"faith={self.faithfulness:.3f} (answered) "
+                f"rel={self.relevancy:.3f}{judged}")
 
 
 def aggregate_run(evaluated: list[EvaluatedAnswer],
@@ -235,6 +264,7 @@ def aggregate_run(evaluated: list[EvaluatedAnswer],
     that is undefined rather than zero.
     """
     in_scope = [e for e in evaluated if not e.result.is_out_of_scope]
+    answered = [e for e in evaluated if not e.is_refusal]
     judged = any(e.faithfulness is not None for e in evaluated)
 
     modes: dict[str, int] = {}
@@ -244,10 +274,13 @@ def aggregate_run(evaluated: list[EvaluatedAnswer],
     return RunReport(
         answerer=answerer or (evaluated[0].result.answerer if evaluated else "?"),
         n=len(evaluated),
+        n_answered=len(answered),
         context_precision=_mean([e.context_precision for e in in_scope]),
         context_recall=_mean([e.context_recall for e in in_scope]),
         faithfulness=_mean([e.faithfulness.score if e.faithfulness else None
-                            for e in evaluated]),
+                            for e in answered]),
+        faithfulness_all=_mean([e.faithfulness.score if e.faithfulness else None
+                                for e in evaluated]),
         relevancy=_mean([e.relevancy.score if e.relevancy else None
                          for e in evaluated]),
         correctness=_mean([e.correctness.score if e.correctness else None
