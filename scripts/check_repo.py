@@ -21,6 +21,37 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 problems: list[str] = []
 
+# Directories that are never source and must not be walked.
+#
+# The exclusion is not just tidiness. This repo lives on a cloud-synced
+# folder where files can be on-demand placeholders, and reading one
+# blocks until it downloads. An unbounded rglob over caches and .git
+# turns a one-second check into a multi-minute stall that looks like a
+# hang. Scanning only source keeps it fast and predictable.
+SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".venv", "venv",
+             ".ipynb_checkpoints", "embedding_cache", ".llm_cache",
+             "vectorstore", ".mypy_cache"}
+BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".npy", ".faiss",
+                   ".index", ".pkl", ".joblib", ".zip", ".pdf"}
+MAX_BYTES = 2_000_000
+
+
+def source_files() -> list[Path]:
+    """Every text file that is genuinely part of the project."""
+    out: list[Path] = []
+    for path in ROOT.rglob("*"):
+        if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        if not path.is_file() or path.suffix in BINARY_SUFFIXES:
+            continue
+        try:
+            if path.stat().st_size > MAX_BYTES:
+                continue
+        except OSError:
+            continue
+        out.append(path)
+    return sorted(out)
+
 
 def check_notebooks() -> None:
     """Outputs stripped, cell ids present, and .py/.ipynb in sync."""
@@ -36,6 +67,19 @@ def check_notebooks() -> None:
         if any("id" not in c for c in nb["cells"]):
             problems.append(f"{nb_path.name}: cells missing ids (nbformat 4.5+)")
 
+        setup = "".join(nb["cells"][1]["source"]) if len(nb["cells"]) > 1 else ""
+        # Match the ASSIGNMENT, not the bare substring — the corrected
+        # setup cell explains the old bug in a comment, and a naive
+        # substring check flags its own documentation.
+        code_lines = [l for l in setup.split("\n") if not l.lstrip().startswith("#")]
+        if any(re.search(r"PROJECT_ROOT\s*=\s*Path\.cwd\(\)\.parent", l)
+               for l in code_lines):
+            problems.append(
+                f"{nb_path.name}: setup cell uses Path.cwd().parent, which "
+                f"assumes the kernel started in notebooks/. Launch Jupyter "
+                f"from the project root and it resolves one level too high, "
+                f"so data/ and src/ both vanish. Walk up for a marker instead.")
+
         py_path = nb_path.with_suffix(".py")
         if not py_path.exists():
             problems.append(f"{nb_path.name}: no paired .py source")
@@ -47,11 +91,15 @@ def check_notebooks() -> None:
         code = "".join("".join(c["source"]) for c in nb["cells"]
                        if c["cell_type"] == "code")
         norm = lambda s: re.sub(r"\s+", "", s)
+        # Normalise the notebook ONCE. Recomputing it per source line is
+        # O(lines x notebook_size) and turns a fast check into a hang on
+        # the larger notebooks.
+        norm_code = norm(code)
         missing = [
             line for line in body.split("\n")
             if line.strip() and not line.strip().startswith("#")
             and "Path(__file__)" not in line
-            and norm(line) not in norm(code)
+            and norm(line) not in norm_code
         ]
         if missing:
             problems.append(
@@ -59,14 +107,13 @@ def check_notebooks() -> None:
                 f".ipynb — the notebook is stale relative to its source")
 
 
-def check_text_files() -> None:
+def check_text_files(files: list[Path]) -> None:
     """Encoding, trailing newline, whitespace, merge markers."""
-    patterns = ("*.py", "*.md", "*.yml", "*.yaml", "*.json", "*.txt", "*.example")
-    for pattern in patterns:
-        for path in sorted(ROOT.rglob(pattern)):
-            if any(part in {".git", ".venv", "__pycache__", ".pytest_cache"}
-                   for part in path.parts):
-                continue
+    exts = {".py", ".md", ".yml", ".yaml", ".json", ".txt", ".example",
+            ".cfg", ".toml"}
+    for path in files:
+        if path.suffix in exts or path.name in {".gitignore", ".gitattributes",
+                                                ".env.example"}:
             raw = path.read_bytes()
             if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
                 problems.append(f"{path.relative_to(ROOT)}: UTF-16 (PowerShell "
@@ -84,17 +131,12 @@ def check_text_files() -> None:
                 problems.append(f"{path.relative_to(ROOT)}: merge conflict marker")
 
 
-def check_secrets() -> None:
-    """Credential shapes anywhere in the tree."""
+def check_secrets(files: list[Path]) -> None:
+    """Credential shapes anywhere in the source tree."""
     shapes = re.compile(
         r"sk-[a-zA-Z0-9]{20,}|sk-ant-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}"
         r"|BEGIN [A-Z ]*PRIVATE KEY")
-    for path in sorted(ROOT.rglob("*")):
-        if not path.is_file() or any(
-                p in {".git", "__pycache__", ".pytest_cache"} for p in path.parts):
-            continue
-        if path.suffix in {".png", ".jpg", ".npy", ".faiss"}:
-            continue
+    for path in files:
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
@@ -105,9 +147,11 @@ def check_secrets() -> None:
 
 
 def main() -> int:
+    files = source_files()
     check_notebooks()
-    check_text_files()
-    check_secrets()
+    check_text_files(files)
+    check_secrets(files)
+    print(f"Scanned {len(files)} source files.")
 
     if problems:
         print(f"FAILED — {len(problems)} problem(s):\n")

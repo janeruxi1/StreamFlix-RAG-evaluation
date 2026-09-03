@@ -432,7 +432,13 @@ with a spend cap.
 
 Notebooks exist as paired `.py` and `.ipynb`. The `.py` is the source of
 truth and what CI runs; the `.ipynb` is generated from it and committed
-with outputs stripped.
+with outputs stripped. Either file works from any working directory — the
+notebook locates the project root by walking up for a marker rather than
+assuming where Jupyter was launched.
+
+`python scripts/check_repo.py` enforces the repo-wide invariants (stripped
+outputs, `.py`/`.ipynb` parity, encoding, no credential shapes) across
+every file rather than just the current diff. CI runs it before the tests.
 
 ---
 
