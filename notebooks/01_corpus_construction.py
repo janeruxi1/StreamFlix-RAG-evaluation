@@ -496,7 +496,8 @@ plt.suptitle("Phase 1 — corpus and evaluation set composition",
              fontsize=13, fontweight="bold", y=1.02)
 plt.tight_layout()
 plt.savefig(FIG_DIR / "01_corpus_composition.png", dpi=140,
-            bbox_inches="tight")
+            bbox_inches="tight",
+            metadata={"Software": None})
 print(f"\nSaved -> {FIG_DIR}/01_corpus_composition.png")
 
 

@@ -192,7 +192,8 @@ plt.suptitle("Phase 2 — chunking strategy comparison",
              fontsize=13, fontweight="bold", y=1.02)
 plt.tight_layout()
 plt.savefig(FIG_DIR / "02_chunking_profiles.png", dpi=140,
-            bbox_inches="tight")
+            bbox_inches="tight",
+            metadata={"Software": None})
 print(f"Saved -> {FIG_DIR}/02_chunking_profiles.png")
 
 

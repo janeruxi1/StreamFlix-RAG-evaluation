@@ -38,6 +38,12 @@ jobs:
       - name: Build corpus and golden set
         run: python -c "from src.corpus.build import write_corpus, write_golden_set; write_corpus(); write_golden_set()"
 
+      - name: Repo-wide invariants
+        # Scans EVERY file, not just the diff. Added after notebook 02 was
+        # committed with embedded outputs and survived several commits,
+        # because diff-scoped checks never look at files nobody touched.
+        run: python scripts/check_repo.py
+
       - name: Run test suite
         run: pytest tests/ -v --tb=short
 

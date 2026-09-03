@@ -401,7 +401,8 @@ ax2.set_axisbelow(True)
 plt.suptitle("Phase 4 — grounding and refusal", fontsize=13,
              fontweight="bold", y=1.02)
 plt.tight_layout()
-plt.savefig(FIG_DIR / "04_refusal_tradeoff.png", dpi=140, bbox_inches="tight")
+plt.savefig(FIG_DIR / "04_refusal_tradeoff.png", dpi=140, bbox_inches="tight",
+            metadata={"Software": None})
 print(f"\n  Saved -> {FIG_DIR}/04_refusal_tradeoff.png")
 
 

@@ -453,7 +453,8 @@ ax2.set_axisbelow(True)
 plt.suptitle("Phase 5 — evaluation harness", fontsize=13,
              fontweight="bold", y=1.02)
 plt.tight_layout()
-plt.savefig(FIG_DIR / "05_evaluation.png", dpi=140, bbox_inches="tight")
+plt.savefig(FIG_DIR / "05_evaluation.png", dpi=140, bbox_inches="tight",
+            metadata={"Software": None})
 print(f"  Saved -> {FIG_DIR}/05_evaluation.png")
 
 

@@ -486,7 +486,8 @@ ax2.set_axisbelow(True)
 plt.suptitle("Phase 3 — retrieval bake-off", fontsize=13,
              fontweight="bold", y=1.02)
 plt.tight_layout()
-plt.savefig(FIG_DIR / "03_retrieval_bakeoff.png", dpi=140, bbox_inches="tight")
+plt.savefig(FIG_DIR / "03_retrieval_bakeoff.png", dpi=140, bbox_inches="tight",
+            metadata={"Software": None})
 print(f"\n  Saved -> {FIG_DIR}/03_retrieval_bakeoff.png")
 
 
