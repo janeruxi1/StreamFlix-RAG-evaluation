@@ -38,6 +38,16 @@ jobs:
       - name: Build corpus and golden set
         run: python -c "from src.corpus.build import write_corpus, write_golden_set; write_corpus(); write_golden_set()"
 
+      - name: Notebooks are in sync with their .py sources
+        # Regenerate and fail if anything changed. A .ipynb that has
+        # drifted from its source is a notebook nobody has actually run.
+        run: |
+          python scripts/build_notebooks.py
+          git diff --exit-code notebooks/ || (
+            echo "::error::notebooks/ is stale — run scripts/build_notebooks.py"
+            exit 1
+          )
+
       - name: Repo-wide invariants
         # Scans EVERY file, not just the diff. Added after notebook 02 was
         # committed with embedded outputs and survived several commits,

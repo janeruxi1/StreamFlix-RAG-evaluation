@@ -437,9 +437,12 @@ notebook locates the project root by searching up *and* down for a marker
 file, so it resolves whether Jupyter was started inside `notebooks/`, at
 the project root, or in a parent folder holding several projects.
 
-`python scripts/check_repo.py` enforces the repo-wide invariants (stripped
-outputs, `.py`/`.ipynb` parity, encoding, no credential shapes) across
-every file rather than just the current diff. CI runs it before the tests.
+`python scripts/build_notebooks.py` regenerates the `.ipynb` files from
+their `.py` sources, and `python scripts/check_repo.py` enforces the
+repo-wide invariants (stripped outputs, `.py`/`.ipynb` parity, encoding,
+no credential shapes) across every file rather than just the current
+diff. CI runs both before the tests, and fails if the notebooks have
+drifted from their sources.
 
 ---
 
