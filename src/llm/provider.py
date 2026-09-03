@@ -430,16 +430,34 @@ def _check() -> int:
         print(f"  {masked_credential(var)}")
     print()
 
-    try:
-        llm = get_provider()
-        print(f"  ✓ Provider constructed: {llm!r}")
-        print(f"  ✓ Ready. Credentials resolved without being exposed.")
-        status = 0
-    except MissingCredentialError as exc:
-        print(f"  ✗ {exc}")
-        status = 1
-    except Exception as exc:  # noqa: BLE001 - surface any config problem
-        print(f"  ✗ Provider construction failed: {type(exc).__name__}: {exc}")
+    # Report SDK availability explicitly. Constructing a provider is NOT
+    # sufficient evidence that a call can be made: the vendor SDK is
+    # imported lazily inside _call, so get_provider() succeeds happily
+    # with the package absent. An earlier version of this function did
+    # exactly that and printed "Ready" to someone whose next API call
+    # would raise ModuleNotFoundError — a diagnostic that lied about the
+    # thing it existed to diagnose.
+    module = _SDK_MODULE.get(provider, provider)
+    installed = importlib.util.find_spec(module) is not None
+    mark = "✓" if installed else "✗"
+    print(f"  {mark} SDK package {module!r}: "
+          f"{'installed' if installed else 'NOT INSTALLED'}")
+    print()
+
+    ready, blocker = provider_ready()
+    if ready:
+        try:
+            llm = get_provider()
+            print(f"  ✓ Provider constructed: {llm!r}")
+            print("  ✓ READY — credential and SDK both present, and the "
+                  "credential was\n      resolved without being exposed.")
+            status = 0
+        except Exception as exc:  # noqa: BLE001 - surface any config problem
+            print(f"  ✗ Provider construction failed: "
+                  f"{type(exc).__name__}: {exc}")
+            status = 1
+    else:
+        print(f"  ✗ NOT READY — {blocker}")
         status = 1
 
     print("=" * 62)

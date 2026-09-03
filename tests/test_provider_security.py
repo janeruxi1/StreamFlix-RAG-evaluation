@@ -216,3 +216,48 @@ def test_disabled_cache_is_a_noop(tmp_path):
     cache = ResponseCache(cache_dir=tmp_path, enabled=False)
     cache.put("m", "p", "answer")
     assert cache.get("m", "p") is None
+
+
+# ---------------------------------------------------------------------
+# The diagnostic must not lie
+# ---------------------------------------------------------------------
+def test_check_reports_not_ready_when_the_sdk_is_missing(monkeypatch, capsys):
+    """Regression: --check called get_provider() and printed 'Ready'.
+
+    The vendor SDK is imported lazily inside _call, so constructing a
+    provider succeeds happily with the package absent. The one command
+    whose entire job is verifying setup was therefore reporting success
+    to someone whose next API call would raise ModuleNotFoundError.
+    """
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-" + "y" * 40)
+    monkeypatch.setattr(prov.importlib.util, "find_spec", lambda name: None)
+
+    status = prov._check()
+    out = capsys.readouterr().out
+
+    assert status == 1, "--check must exit non-zero when it cannot make a call"
+    assert "NOT INSTALLED" in out
+    assert "NOT READY" in out
+    assert "pip install openai" in out
+
+
+def test_check_never_prints_the_raw_credential(monkeypatch, capsys):
+    """The report is meant to be safe to screenshot and paste."""
+    from src.llm import provider as prov
+
+    secret = "sk-" + "z" * 40
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", secret)
+    monkeypatch.setattr(prov.importlib.util, "find_spec", lambda name: None)
+
+    prov._check()
+    out = capsys.readouterr().out
+
+    assert secret not in out
+    assert secret[10:30] not in out
+    assert secret[:7] in out, "a masked prefix should still be shown"
