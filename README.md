@@ -423,7 +423,7 @@ python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
 python notebooks/05_evaluation.py             # eval harness (no key needed)
 
-pytest tests/ -q                              # 286 tests
+pytest tests/ -q                              # 292 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -482,7 +482,7 @@ src/
                judge validation suite, RAG metrics
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
-tests/         286 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         292 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures

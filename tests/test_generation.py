@@ -440,3 +440,87 @@ def test_notebook_setup_cell_fails_clearly_when_outside_the_project(tmp_path):
                        capture_output=True, text=True, timeout=120)
     assert r.returncode != 0
     assert "Could not locate the project root" in r.stderr
+
+
+# ---------------------------------------------------------------------
+# Provider preflight — every precondition, not just the credential
+# ---------------------------------------------------------------------
+def test_provider_ready_reports_a_missing_sdk(monkeypatch):
+    """Regression: notebook 04 checked only for a key, announced
+    'running 120 questions', then died on question one with
+    ModuleNotFoundError because the openai package was absent.
+
+    A credential is necessary and not sufficient.
+    """
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-" + "x" * 40)
+    monkeypatch.setattr(prov.importlib.util, "find_spec", lambda name: None)
+
+    ready, reason = prov.provider_ready()
+    assert not ready
+    assert "openai" in reason
+    assert "pip install" in reason, "the reason must name the fix"
+
+
+def test_provider_ready_reports_a_missing_key(monkeypatch):
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    ready, reason = prov.provider_ready()
+    assert not ready
+    assert "OPENAI_API_KEY" in reason
+
+
+def test_provider_ready_rejects_the_placeholder_key(monkeypatch):
+    """.env.example ships a placeholder; copying it without editing is a
+    normal mistake and must not look like a working setup."""
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-your-key-here")
+
+    ready, reason = prov.provider_ready()
+    assert not ready
+    assert "placeholder" in reason.lower()
+
+
+def test_provider_ready_is_true_when_key_and_sdk_are_both_present(monkeypatch):
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-" + "x" * 40)
+    monkeypatch.setattr(prov.importlib.util, "find_spec", lambda name: object())
+
+    ready, reason = prov.provider_ready()
+    assert ready and reason == ""
+
+
+def test_provider_ready_makes_no_network_call(monkeypatch):
+    """It runs at the top of every notebook, so it must be cheap and must
+    never construct a client."""
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-" + "x" * 40)
+    monkeypatch.setattr(prov, "get_provider", lambda *a, **k:
+                        (_ for _ in ()).throw(AssertionError("built a provider")))
+    prov.provider_ready()
+
+
+def test_provider_ready_rejects_an_unknown_provider(monkeypatch):
+    from src.llm import provider as prov
+
+    monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    ready, reason = prov.provider_ready()
+    assert not ready
+    assert "not recognised" in reason

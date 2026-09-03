@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import importlib.util
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -334,6 +335,55 @@ def get_provider(provider_name: Optional[str] = None,
         enabled=os.getenv("ENABLE_LLM_CACHE", "true").lower() == "true",
     )
     return _PROVIDERS[name](budget, cache, model=model)
+
+
+_SDK_MODULE = {"openai": "openai", "anthropic": "anthropic", "ollama": "requests"}
+_SDK_INSTALL = {"openai": "pip install openai",
+                "anthropic": "pip install anthropic",
+                "ollama": "pip install requests"}
+
+
+def provider_ready(provider_name: Optional[str] = None) -> tuple[bool, str]:
+    """Can we actually make a call? Checks EVERY precondition.
+
+    A credential in the environment is necessary and not sufficient — the
+    vendor SDK also has to be importable. Checking only the key means a
+    notebook announces "running 120 questions" and then dies on question
+    one with ModuleNotFoundError, after the reader has been told the run
+    started.
+
+    Returns (ready, reason). `reason` is empty when ready, and otherwise
+    names the missing piece and the command that fixes it, so callers can
+    print something actionable instead of a traceback.
+
+    Deliberately does NOT construct a provider or make a network call:
+    this must be cheap enough to run at the top of every notebook.
+    """
+    _load_dotenv_if_present()
+
+    name = (provider_name or os.getenv("LLM_PROVIDER", "openai")).lower()
+    if name not in _PROVIDERS:
+        return False, (f"LLM_PROVIDER={name!r} is not recognised. "
+                       f"Expected one of: {', '.join(_PROVIDERS)}")
+
+    if name != "ollama":                      # ollama is keyless and local
+        env_var = "OPENAI_API_KEY" if name == "openai" else "ANTHROPIC_API_KEY"
+        raw = os.getenv(env_var, "").strip()
+        if not raw:
+            return False, (f"{env_var} is not set. Copy .env.example to .env "
+                           f"and add your key.")
+        if raw.startswith("sk-your-key") or raw.endswith("-here"):
+            return False, (f"{env_var} still holds the placeholder from "
+                           f".env.example, not a real key.")
+
+    module = _SDK_MODULE[name]
+    if importlib.util.find_spec(module) is None:
+        return False, (f"the {module!r} package is not installed, so no call "
+                       f"can be made even though the credential is present. "
+                       f"Fix: {_SDK_INSTALL[name]}  (or "
+                       f"pip install -r requirements.txt)")
+
+    return True, ""
 
 
 def get_judge(model: Optional[str] = None) -> LLMProvider:

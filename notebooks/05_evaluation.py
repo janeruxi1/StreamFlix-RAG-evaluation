@@ -84,8 +84,12 @@ print("=" * 78)
 print("A. SETUP")
 print("=" * 78)
 
-raw_key = os.getenv("OPENAI_API_KEY", "")
-has_key = bool(raw_key.strip()) and not raw_key.startswith("sk-your-key")
+# See notebook 04: a credential alone is not enough to make a call, the
+# SDK has to be importable too. provider_ready() checks both and returns
+# a reason naming the missing piece.
+from src.llm.provider import provider_ready
+
+has_key, blocker = provider_ready()
 
 if has_key:
     from src.llm.provider import get_provider
@@ -102,7 +106,11 @@ print(f"""
 """)
 
 if not has_key:
-    print(f"""  No credential, so the LEXICAL judge runs instead of an LLM. That is
+    print(f"""  LLM judge unavailable.
+
+  Reason: {blocker}
+
+  So the LEXICAL judge runs instead. That is
   not a mock — it scores by term overlap, which is a real (weak) method,
   and Section B measures exactly how weak.
 

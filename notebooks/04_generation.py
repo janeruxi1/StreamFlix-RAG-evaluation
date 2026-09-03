@@ -92,8 +92,14 @@ print("=" * 78)
 print("A. SETUP")
 print("=" * 78)
 
-has_key = bool(os.getenv("OPENAI_API_KEY", "").strip()) and \
-    not os.getenv("OPENAI_API_KEY", "").startswith("sk-your-key")
+# Check EVERY precondition, not just the credential. A key in the
+# environment does not mean a call can be made — the vendor SDK also has
+# to be installed. Checking only the key means this notebook announces
+# "running 120 questions", then dies on question one with
+# ModuleNotFoundError after the reader has been told the run started.
+from src.llm.provider import provider_ready
+
+has_key, blocker = provider_ready()
 
 print(f"""
   Retrieval (fixed by Phase 3) : {STRATEGY} + BM25 @ depth {DEPTH}
@@ -104,12 +110,16 @@ print(f"""
 
 if not has_key:
     n_calls = len(golden) * len(VARIANTS)
-    print(f"""  No credential present, so the LLM arms are SKIPPED. The extractive
-  baseline runs in full and exercises the entire measurement pipeline,
-  which is what keeps this notebook runnable in CI.
+    print(f"""  LLM arms SKIPPED.
 
-  To run the LLM arms:
-      cp .env.example .env      # then add your key
+  Reason: {blocker}
+
+  The extractive baseline still runs in full and exercises the entire
+  measurement pipeline, which is what keeps this notebook runnable in CI.
+
+  This check covers every precondition, not just the credential, so a
+  missing SDK is caught here rather than on question one of a 600-call
+  loop. Verify the whole path with:
       python -m src.llm.provider --check
 
   Estimated cost when enabled: {n_calls} calls
