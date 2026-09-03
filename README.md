@@ -10,8 +10,8 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable. The retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-> **Status: in progress.** Phases 1–5 of 7 are complete and tested.
-> Phases 6–7 are not built yet. The roadmap below marks exactly where the
+> **Status: in progress.** Phases 1–6 of 7 are complete and tested.
+> Phase 7 is not built yet. The roadmap below marks exactly where the
 > line is. Nothing in this README describes results that don't exist.
 
 ---
@@ -251,6 +251,49 @@ system isn't failing to *rank* the right articles; it's failing to work
 out which articles an underspecified question is about. That's query
 understanding, and no amount of retrieval or prompt tuning fixes it.
 
+### Phase 6 — Auditing the judge ✅
+
+Phase 5 asked whether the judge gets known cases *right*. That's
+necessary and not sufficient — a judge can score 100% on unambiguous
+cases and still be useless for comparing prompt variants, because it may
+respond to properties unrelated to answer quality.
+
+**Paired probes, not correlations.** Correlating score against answer
+length across the golden set does *not* measure length bias: longer
+answers may genuinely be more complete, so the correlation confounds bias
+with quality — in the direction that makes bias look real when it isn't.
+Each probe here is instead a **pair identical in every respect except one
+manipulated variable** — same claims, same context, same citations, only
+phrasing length differs. Any gap is attributable because nothing else
+moved. Three dimensions: length, context ordering, and self-consistency.
+
+**The keyless judge has a severe, opposite bias.** `LexicalJudge`
+*penalises* length by −0.521 on average, materially on 3 of 3 probes. The
+mechanism is transparent: faithfulness is the fraction of *answer* terms
+found in context, so padding words are absent from the context and drag
+the ratio down. That's the **opposite** of the documented LLM-judge
+tendency to reward verbosity. Two judges with opposite biases are both
+wrong, and neither is fixable by choosing a threshold — the direction is
+a property of the scoring mechanism.
+
+**Converted into a statement about a real conclusion.** At −0.014 score
+per answer word, two prompt variants differing by ~30 words would differ
+by ~0.43 on faithfulness from length alone — far above the 0.15 material
+threshold. So this judge cannot be used for the Phase 4 ladder
+comparison. Stated precisely: it does *not* invalidate Phase 4's
+judge-free results (refusal rates, citation integrity, blame attribution
+are all counts and regexes), only faithfulness comparisons across
+variants.
+
+**Inter-judge agreement, and why 1.000 isn't reassuring.** Cohen's kappa
+rather than raw agreement, because raw agreement is inflated whenever one
+verdict dominates. The two keyless raters diverge by up to 0.320 on the
+probes yet agree on all 40 golden-set answers — and that combination is a
+fact about the *data*, not the judges: the extractive baseline copies
+sentences verbatim, so every answer is trivially grounded under any
+lexical formulation. High agreement on easy data is not evidence of judge
+reliability.
+
 ---
 
 ## Findings so far
@@ -401,7 +444,7 @@ five confident, on-topic, wrong chunks.
 | 3. Retrieval bake-off — strategy × backend × depth, BM25 as a first-class arm | ✅ Complete |
 | 4. Generation layer — prompting, grounding, refusal behaviour | ✅ Complete |
 | 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | ✅ Complete |
-| 6. LLM-as-judge + failure analysis | Not started |
+| 6. Judge audit — bias probes, inter-judge agreement | ✅ Complete |
 | 7. Decision memo + deployment recommendation | Not started |
 
 ---
@@ -422,8 +465,9 @@ python notebooks/02_chunking_embedding.py     # chunking + retrieval baseline
 python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
 python notebooks/05_evaluation.py             # eval harness (no key needed)
+python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 
-pytest tests/ -q                              # 294 tests
+pytest tests/ -q                              # 317 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -485,7 +529,8 @@ src/
                judge validation suite, RAG metrics
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
-tests/         294 tests — corpus, difficulty, chunking, retrieval, metrics,
+               06 judge audit
+tests/         317 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures

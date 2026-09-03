@@ -233,9 +233,6 @@ class LexicalJudge(Judge):
 
     name = "lexical_judge"
 
-    def __init__(self, support_threshold: float = 0.6):
-        self.support_threshold = support_threshold
-
     @staticmethod
     def _overlap(a: str, b: str) -> float:
         """Fraction of a's content terms that appear in b."""
@@ -255,6 +252,70 @@ class LexicalJudge(Judge):
                     reference: str) -> Judgement:
         return Judgement("correctness", self._overlap(reference, answer),
                          "lexical overlap of reference terms with answer")
+
+
+class CoverageJudge(Judge):
+    """A second non-LLM judge using a genuinely different formulation.
+
+    Exists so inter-judge agreement can be exercised without a
+    credential — but only if the two judges actually differ. An earlier
+    version compared two LexicalJudge instances distinguished by a
+    `support_threshold` parameter that was stored and never read, so the
+    "two raters" were one function and Cohen's kappa came out at exactly
+    1.000. A perfect agreement score between a thing and itself measures
+    nothing, and it looked like a result.
+
+    LexicalJudge asks: what fraction of the ANSWER's terms appear in the
+    context? That is precision-flavoured — it punishes an answer for
+    saying anything the context does not, including filler.
+
+    This asks the reverse: what fraction of the answer's SENTENCES are
+    each substantially grounded in the context? That is closer to how
+    faithfulness is actually defined — per claim rather than per token —
+    and it disagrees with term overlap on exactly the cases where an
+    answer is verbose but every sentence is supported.
+
+    Still not semantic, and still fails contradictions for the same
+    reason. It is a second flawed rater, which is what makes the
+    agreement number non-trivial rather than tautological.
+    """
+
+    name = "coverage_judge"
+
+    def __init__(self, sentence_support: float = 0.6):
+        self.sentence_support = sentence_support
+
+    def _sentences(self, text: str) -> list[str]:
+        return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text)
+                if s.strip()]
+
+    def faithfulness(self, answer: str, context: str) -> Judgement:
+        sentences = self._sentences(answer)
+        if not sentences:
+            return Judgement("faithfulness", 1.0, "no claims made")
+        ctx_terms = set(tokenize(context))
+        supported = 0
+        for sentence in sentences:
+            terms = set(tokenize(sentence))
+            if not terms:
+                supported += 1
+                continue
+            if len(terms & ctx_terms) / len(terms) >= self.sentence_support:
+                supported += 1
+        return Judgement("faithfulness", supported / len(sentences),
+                         f"{supported}/{len(sentences)} sentences grounded",
+                         n_claims=len(sentences), n_supported=supported)
+
+    def relevancy(self, answer: str, question: str) -> Judgement:
+        q, a = set(tokenize(question)), set(tokenize(answer))
+        return Judgement("relevancy", len(q & a) / len(q) if q else 0.0,
+                         "question-term coverage in the answer")
+
+    def correctness(self, answer: str, question: str,
+                    reference: str) -> Judgement:
+        r, a = set(tokenize(reference)), set(tokenize(answer))
+        return Judgement("correctness", len(r & a) / len(r) if r else 0.0,
+                         "reference-term coverage in the answer")
 
 
 def get_judge(provider: LLMProvider | None = None,
