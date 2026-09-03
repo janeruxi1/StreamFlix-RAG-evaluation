@@ -423,7 +423,7 @@ python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
 python notebooks/05_evaluation.py             # eval harness (no key needed)
 
-pytest tests/ -q                              # 284 tests
+pytest tests/ -q                              # 286 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -433,8 +433,9 @@ with a spend cap.
 Notebooks exist as paired `.py` and `.ipynb`. The `.py` is the source of
 truth and what CI runs; the `.ipynb` is generated from it and committed
 with outputs stripped. Either file works from any working directory — the
-notebook locates the project root by walking up for a marker rather than
-assuming where Jupyter was launched.
+notebook locates the project root by searching up *and* down for a marker
+file, so it resolves whether Jupyter was started inside `notebooks/`, at
+the project root, or in a parent folder holding several projects.
 
 `python scripts/check_repo.py` enforces the repo-wide invariants (stripped
 outputs, `.py`/`.ipynb` parity, encoding, no credential shapes) across
@@ -481,7 +482,7 @@ src/
                judge validation suite, RAG metrics
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
-tests/         284 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         286 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures

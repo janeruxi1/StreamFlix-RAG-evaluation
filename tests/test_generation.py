@@ -386,3 +386,57 @@ def test_refusal_followed_by_a_pointer_stays_ambiguous_and_is_documented():
         "article is [bill-001] but it doesn't cover this.")
     assert check.is_partial
     assert not check.is_refusal
+
+
+# ---------------------------------------------------------------------
+# Notebook bootstrap — regression for two real breakages
+# ---------------------------------------------------------------------
+def test_notebook_setup_cell_resolves_from_any_launch_directory(tmp_path):
+    """The .ipynb setup cell must find the project root wherever Jupyter
+    was started.
+
+    Two wrong assumptions shipped here in succession, each breaking a
+    real workflow and neither caught by CI, because the .py files use
+    __file__ and are immune:
+
+      Path.cwd().parent   broke when Jupyter was launched from the
+                          project root
+      upward search only  broke when Jupyter was launched from a parent
+                          folder holding several projects, which puts
+                          the project BELOW cwd
+
+    This runs the actual setup cell from each location.
+    """
+    import json
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    nb = json.loads((root / "notebooks" / "02_chunking_embedding.ipynb")
+                    .read_text(encoding="utf-8"))
+    setup = "".join(nb["cells"][1]["source"])
+    probe = setup + "\nprint(PROJECT_ROOT.name)"
+
+    for cwd in (root / "notebooks", root, root.parent):
+        r = subprocess.run(["python", "-c", probe], cwd=cwd,
+                           capture_output=True, text=True, timeout=120)
+        assert r.returncode == 0, f"setup cell failed from {cwd}: {r.stderr[-300:]}"
+        assert r.stdout.strip().splitlines()[-1] == root.name
+
+
+def test_notebook_setup_cell_fails_clearly_when_outside_the_project(tmp_path):
+    """From somewhere unrelated it must raise something actionable, not
+    silently resolve to the wrong directory."""
+    import json
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    nb = json.loads((root / "notebooks" / "02_chunking_embedding.ipynb")
+                    .read_text(encoding="utf-8"))
+    setup = "".join(nb["cells"][1]["source"])
+
+    r = subprocess.run(["python", "-c", setup], cwd=tmp_path,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode != 0
+    assert "Could not locate the project root" in r.stderr
