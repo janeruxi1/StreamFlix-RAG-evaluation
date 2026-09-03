@@ -98,11 +98,37 @@ if has_key:
 else:
     judge = LexicalJudge()
 
+n_val = len(VALIDATION_CASES) * 2
+n_refs = sum(1 for q in golden if q.get("reference_answer"))
+n_judge = len(golden) * 2 + n_refs
+judge_model = os.getenv("JUDGE_MODEL", "gpt-4o")
+
 print(f"""
   Retrieval        : {STRATEGY} + BM25 @ depth {DEPTH}
   Questions        : {len(golden)}
   Judge            : {judge!r}
   Credential       : {has_key}
+""")
+
+if has_key:
+    # gpt-4o list pricing. Stated because the judge tier is deliberately
+    # the EXPENSIVE model — the whole point of the asymmetry — so this
+    # notebook costs roughly eight times what the generation notebook
+    # does despite making fewer calls.
+    in_usd = (n_val + n_judge) * 800 / 1e6 * 2.50
+    out_usd = (n_val + n_judge) * 90 / 1e6 * 10.00
+    print(f"""  Judge calls and cost, at {judge_model} list pricing:
+
+    validation suite (Section B) : {n_val:>4} calls   ~${n_val * 800 / 1e6 * 2.50 + n_val * 90 / 1e6 * 10:.2f}
+    golden set (Sections C-E)    : {n_judge:>4} calls   ~${n_judge * 800 / 1e6 * 2.50 + n_judge * 90 / 1e6 * 10:.2f}
+    total                        : {n_val + n_judge:>4} calls   ~${in_usd + out_usd:.2f}
+
+  Responses are cached on disk, so re-running costs nothing.
+
+  Note the ordering: Section B runs first and costs cents. If the judge
+  fails validation there, stop — the remaining ~${n_judge * 800 / 1e6 * 2.50 + n_judge * 90 / 1e6 * 10:.2f} would buy numbers
+  from an instrument already known to be miscalibrated. The gate is
+  scientific first and economical second, but it is both.
 """)
 
 if not has_key:
