@@ -34,6 +34,7 @@ Sections
   E. Failure attribution — retrieval or generation
   F. Verdict and handoff to Phase 6
 """
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -90,6 +91,7 @@ print("=" * 78)
 from src.llm.provider import provider_ready
 
 has_key, blocker = provider_ready()
+_sdk_found = importlib.util.find_spec("openai") is not None
 
 if has_key:
     from src.llm.provider import get_provider
@@ -149,6 +151,23 @@ if not has_key:
   {os.getenv('GENERATION_MODEL', 'gpt-4o-mini')} output. The asymmetry is deliberate: a model
   grading its own output family shows self-preference bias, which would
   inflate the exact metric this project is built around.
+
+  If that reason looks wrong — you installed the package, or
+  `python -m src.llm.provider --check` reports READY in a terminal —
+  then the KERNEL is running a different Python than the terminal. That
+  is the usual cause, and these two lines identify it:
+
+    kernel Python : {sys.executable}
+    openai found  : {_sdk_found}
+
+  Compare that path against `where python`. If they differ, either
+  install into the kernel's own environment from a notebook cell:
+
+      %pip install openai
+
+  or point the notebook at the interpreter you already installed into.
+  Restart the kernel afterwards — pip does not refresh an already
+  running interpreter's import state.
 """)
 
 

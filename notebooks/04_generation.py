@@ -45,6 +45,7 @@ Sections
   G. Blame attribution — retrieval vs generation
   H. Verdict and handoff to Phase 5
 """
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -100,6 +101,7 @@ print("=" * 78)
 from src.llm.provider import provider_ready
 
 has_key, blocker = provider_ready()
+_sdk_found = importlib.util.find_spec("openai") is not None
 
 print(f"""
   Retrieval (fixed by Phase 3) : {STRATEGY} + BM25 @ depth {DEPTH}
@@ -121,6 +123,23 @@ if not has_key:
   missing SDK is caught here rather than on question one of a 600-call
   loop. Verify the whole path with:
       python -m src.llm.provider --check
+
+  If that reason looks wrong — you installed the package, or
+  `python -m src.llm.provider --check` reports READY in a terminal —
+  then the KERNEL is running a different Python than the terminal. That
+  is the usual cause, and these two lines identify it:
+
+    kernel Python : {sys.executable}
+    openai found  : {_sdk_found}
+
+  Compare that path against `where python`. If they differ, either
+  install into the kernel's own environment from a notebook cell:
+
+      %pip install openai
+
+  or point the notebook at the interpreter you already installed into.
+  Restart the kernel afterwards — pip does not refresh an already
+  running interpreter's import state.
 
   Estimated cost when enabled: {n_calls} calls
   ({len(golden)} questions x {len(VARIANTS)} variants).
