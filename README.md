@@ -10,6 +10,10 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable. The retrieval and generation code exists to
 give the evaluation harness something to measure.
 
+The work was framed by [`reports/scenario_brief.md`](reports/scenario_brief.md)
+— a stakeholder asking not for an assistant, but for a defensible answer to
+whether one is safe to deploy.
+
 > **Status: all 7 phases complete.** The retrieval half is measured and
 > recommended for deployment; the generation half is built, tested, and
 > explicitly **unmeasured** — no LLM arm has run. The decision memo says
@@ -479,6 +483,22 @@ five confident, on-topic, wrong chunks.
 
 ---
 
+## Try it
+
+```bash
+pip install -r requirements.txt
+streamlit run app/streamlit_app.py
+```
+
+Most RAG demos show you an answer. This one shows the answer **and the
+evidence for whether to believe it** — retrieval, refusal detection,
+citation integrity, and the ground-truth evaluation side by side. There's
+a third tab that audits the judge, because a score from an uncalibrated
+instrument is a number rather than a measurement.
+
+Runs with no API key. See [`app/README.md`](app/README.md) for what's
+worth trying.
+
 ## Running it
 
 Phases 1–2 need **no API key and no model download**. This is enforced by
@@ -564,7 +584,9 @@ notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
 tests/         319 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
-reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
+reports/       decision_memo.md, PROJECT_SUMMARY.md, scenario_brief.md,
+               figures
+app/           Streamlit demo
 ```
 
 ---
