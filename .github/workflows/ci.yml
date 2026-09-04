@@ -65,11 +65,12 @@ jobs:
           python notebooks/04_generation.py > /dev/null
           python notebooks/05_evaluation.py > /dev/null
           python notebooks/06_judge_analysis.py > /dev/null
+          python notebooks/07_decision_memo.py > /dev/null
 
       - name: Assert the pipeline ran without any credential
         run: |
           if [ -n "$OPENAI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::A credential is set in CI. Phases 1-6 must run without one."
+            echo "::error::A credential is set in CI. Phases 1-7 must run without one."
             exit 1
           fi
           echo "Confirmed: no LLM credential present, pipeline passed regardless."

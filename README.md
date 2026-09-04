@@ -10,9 +10,10 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable. The retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-> **Status: in progress.** Phases 1–6 of 7 are complete and tested.
-> Phase 7 is not built yet. The roadmap below marks exactly where the
-> line is. Nothing in this README describes results that don't exist.
+> **Status: all 7 phases complete.** The retrieval half is measured and
+> recommended for deployment; the generation half is built, tested, and
+> explicitly **unmeasured** — no LLM arm has run. The decision memo says
+> which is which on every line rather than implying otherwise.
 
 ---
 
@@ -299,6 +300,30 @@ in this data. So agreement here is evidence the *data* lacks the
 separating feature, not evidence either rater is right. Both are still
 lexical, and both still score contradictions as faithful.
 
+### Phase 7 — Decision memo, and keeping it honest ✅
+
+The deliverable is [`reports/decision_memo.md`](reports/decision_memo.md).
+**Recommendation: ship the retrieval layer, hold the generation layer.**
+
+That split is the recommendation, not a hedge. Retrieval was measured
+across 48 configurations with paired inference, multiplicity correction
+and held-out selection. Generation has a complete harness pointed at it
+and **zero readings** — no LLM arm has run. Shipping both on the strength
+of the first would borrow credibility from the measured half to cover the
+unmeasured half, which is the specific mistake this project exists to
+avoid.
+
+**Failure modes are ranked by cost to a customer, not frequency.**
+Answering an unanswerable billing question (11 of 25 out-of-scope) is
+rarer than over-refusing (34 in-scope) and far more expensive. A
+frequency-ordered list inverts the priority.
+
+**Every memo number is verified by `notebooks/07_decision_memo.py`**,
+which recomputes all 14 claims against live code and exits non-zero on
+drift. CI runs it. Numbers in a markdown file rot silently, and a stale
+memo is worse than none because it carries the authority of having been
+checked once.
+
 ---
 
 ## Findings so far
@@ -450,7 +475,7 @@ five confident, on-topic, wrong chunks.
 | 4. Generation layer — prompting, grounding, refusal behaviour | ✅ Complete |
 | 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | ✅ Complete |
 | 6. Judge audit — bias probes, inter-judge agreement | ✅ Complete |
-| 7. Decision memo + deployment recommendation | Not started |
+| 7. Decision memo + deployment recommendation | ✅ Complete |
 
 ---
 
@@ -471,6 +496,7 @@ python notebooks/03_retrieval_bakeoff.py      # 48-config sweep (~90s)
 python notebooks/04_generation.py             # grounding + refusal (no key needed)
 python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
+python notebooks/07_decision_memo.py          # verifies every memo number
 
 pytest tests/ -q                              # 319 tests
 ```
@@ -534,11 +560,11 @@ src/
                judge validation suite, RAG metrics
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
-               06 judge audit
+               06 judge audit · 07 decision memo + verification
 tests/         319 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
-reports/       figures
+reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
 ```
 
 ---
