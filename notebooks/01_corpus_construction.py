@@ -48,6 +48,7 @@ from src.corpus.build import (
     write_golden_set,
 )
 from src.corpus.difficulty import (
+    BM25,
     count_tokens,
     evaluate_lexical_baseline,
     most_similar_pairs,
@@ -246,6 +247,9 @@ are planted, documented, and each has matching golden questions that
 probe it.
 """)
 
+# Article-level BM25, matching how Phase 1 frames retrieval.
+bm25 = BM25({a.article_id: a.as_document() for a in articles})
+
 for i, flaw in enumerate(KNOWN_CORPUS_FLAWS, 1):
     print(f"{i}. [{flaw['kind'].upper()}] {flaw['flaw_id']}")
     print(f"   Articles: {', '.join(flaw['article_ids'])}")
@@ -254,8 +258,35 @@ for i, flaw in enumerate(KNOWN_CORPUS_FLAWS, 1):
         q["question_id"] for q in golden
         if set(q["gt_article_ids"]) & set(flaw["article_ids"])
     ]
-    print(f"   Probed by {len(probes)} question(s): {', '.join(probes[:6])}"
-          + (" ..." if len(probes) > 6 else ""))
+    if probes:
+        print(f"   Probed by {len(probes)} question(s): {', '.join(probes[:6])}"
+              + (" ..." if len(probes) > 6 else ""))
+    else:
+        # A flaw with no question pointing at it is not necessarily an
+        # oversight. Some flaws are DISTRACTOR-type: the correct
+        # behaviour is that the article is never retrieved as an answer,
+        # so there is nothing to ask about it. Printing a bare "0" makes
+        # that design look like a gap, so measure the thing that
+        # actually matters — how often it pollutes retrieved context.
+        distractor_hits = [
+            q["question_id"] for q in golden
+            if set(flaw["article_ids"]) & set(
+                bm25.rank(q["question"], top_k=5))
+        ]
+        top_three = [
+            q["question_id"] for q in golden
+            if set(flaw["article_ids"]) & set(
+                bm25.rank(q["question"], top_k=3))
+        ]
+        print(f"   Probed by 0 questions — this is a DISTRACTOR-type flaw.")
+        print(f"   Its job is to be retrieved and be wrong, so it is measured")
+        print(f"   by contamination rather than by recall:")
+        print(f"     pulled into the top 5 for {len(distractor_hits)}/{len(golden)} questions")
+        print(f"     reached the top 3 for     {len(top_three)}/{len(golden)} questions")
+        if top_three:
+            print(f"     e.g. {', '.join(top_three[:5])}")
+        print(f"   It is never a correct answer to anything, so every one of")
+        print(f"   those is context the generator has to ignore.")
     print()
 
 print(f"COVERAGE GAPS ({len(COVERAGE_GAPS)} topics with no article at all):")
