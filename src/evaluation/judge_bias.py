@@ -209,10 +209,21 @@ class BiasReport:
 
     @property
     def direction(self) -> str:
+        """Plain-language reading, phrased for the dimension measured.
+
+        Consistency is a magnitude, not a direction: its delta is
+        max minus min across repeats and so can never be negative.
+        Describing it as "favouring the longer version" — as a shared
+        label did — is meaningless, since nothing was lengthened.
+        """
         if not self.is_biased:
             return "none detected"
-        return "favours the longer/moved version" if self.mean_delta > 0 \
-            else "penalises the longer/moved version"
+        if self.dimension == "consistency":
+            return "the judge disagrees with itself on identical input"
+        subject = ("the longer version" if self.dimension == "length"
+                   else "the reordered context")
+        verb = "favours" if self.mean_delta > 0 else "penalises"
+        return f"{verb} {subject}"
 
     def __str__(self) -> str:
         return (f"{self.dimension}: mean delta {self.mean_delta:+.3f}, "
@@ -293,7 +304,17 @@ def cohens_kappa(labels_a: list[bool], labels_b: list[bool]) -> float:
     means "no better than chance" rather than "never agrees".
 
     Returns 1.0 for perfect agreement, 0.0 for chance-level, negative for
-    systematic disagreement.
+    systematic disagreement, and NaN when kappa is undefined.
+
+    The undefined case is the one worth being careful about. If either
+    rater assigns every item to the same category, expected agreement is
+    1.0 and kappa is 0/0. An earlier version returned 1.0 there, which
+    reported "almost perfect agreement" for two judges that had simply
+    never disagreed because neither ever said anything else — the exact
+    overstatement this function exists to prevent, and one that directly
+    contradicted the surrounding analysis. NaN is the honest answer:
+    with no variance there is nothing to agree about, and the caller
+    should say so rather than print a number.
     """
     if len(labels_a) != len(labels_b):
         raise ValueError("rater label lists must be the same length")
@@ -306,8 +327,8 @@ def cohens_kappa(labels_a: list[bool], labels_b: list[bool]) -> float:
     p_b = sum(labels_b) / n
     expected = p_a * p_b + (1 - p_a) * (1 - p_b)
 
-    if expected == 1.0:            # both raters constant and identical
-        return 1.0 if observed == 1.0 else 0.0
+    if expected >= 1.0:
+        return float("nan")        # no variance — kappa is not defined
     return (observed - expected) / (1 - expected)
 
 
@@ -321,11 +342,21 @@ class AgreementReport:
     disagreements: list[tuple[str, float, float]]
 
     @property
+    def has_variance(self) -> bool:
+        """Did either rater ever disagree with itself across items?
+
+        False means every item got the same verdict from at least one
+        rater, which makes kappa undefined and raw agreement meaningless.
+        """
+        return self.kappa == self.kappa      # False only for NaN
+
+    @property
     def interpretation(self) -> str:
         """Landis & Koch benchmarks, stated as the convention they are."""
         k = self.kappa
         if k != k:                       # nan
-            return "undefined"
+            return ("UNDEFINED — at least one rater gave every item the "
+                    "same verdict, so there is nothing to agree about")
         if k < 0:
             return "worse than chance"
         if k < 0.20:

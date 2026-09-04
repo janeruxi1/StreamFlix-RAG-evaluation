@@ -156,9 +156,46 @@ def test_kappa_corrects_for_chance():
     assert cohens_kappa(a, b) < raw, "kappa must discount chance agreement"
 
 
-def test_kappa_handles_both_raters_constant():
-    assert cohens_kappa([True] * 5, [True] * 5) == 1.0
-    assert cohens_kappa([True] * 5, [False] * 5) == 0.0
+def test_kappa_is_undefined_when_a_rater_has_no_variance():
+    """Regression, and the more important of the two.
+
+    Phase 6 originally reported 'Cohen's kappa: 1.000 (almost perfect)'
+    for two judges that agreed on all 40 answers — but BOTH had called
+    every answer faithful, so expected agreement was 1.0 and kappa was
+    0/0. Returning 1.0 there claims near-perfect reliability from two
+    raters that never said anything else, which is exactly the
+    overstatement the notebook's own caveat warns against two
+    paragraphs later.
+    """
+    import math
+    assert math.isnan(cohens_kappa([True] * 5, [True] * 5))
+    assert math.isnan(cohens_kappa([False] * 5, [False] * 5))
+
+    # But only when BOTH are constant. With one rater constant and the
+    # other varying, expected agreement equals the varying rater's rate
+    # and kappa is a well-defined 0 — "no better than chance", which is
+    # the correct reading: a constant rater carries no information, but
+    # the quantity is still computable.
+    assert cohens_kappa([True] * 5, [True, True, True, True, False]) == 0.0
+
+
+def test_undefined_kappa_is_reported_as_such():
+    from src.evaluation.judge_bias import AgreementReport
+    report = AgreementReport(judge_a="a", judge_b="b", n=5,
+                             raw_agreement=1.0, kappa=float("nan"),
+                             disagreements=[])
+    assert not report.has_variance
+    assert "UNDEFINED" in report.interpretation
+
+
+def test_consistency_direction_is_not_described_as_length():
+    """The consistency delta is max-min and cannot be negative, so a
+    shared 'favours the longer version' label was meaningless there."""
+    from src.evaluation.judge_bias import BiasReport, ProbeResult, LENGTH_PROBES
+    rep = BiasReport("j", "consistency",
+                     [ProbeResult(LENGTH_PROBES[0], 0.2, 0.9)])
+    assert "longer" not in rep.direction
+    assert "itself" in rep.direction
 
 
 def test_kappa_rejects_mismatched_lengths():
@@ -217,7 +254,12 @@ def test_agreement_binarises_at_the_stated_threshold():
         def faithfulness(self, a, c): return Judgement("faithfulness", self._s)
 
     items = [("q1", "a", "c")]
-    assert judge_agreement(At(0.75, "a"), At(0.99, "b"), items).kappa == 1.0
+    # 0.75 and 0.99 both clear the 0.7 line, so the raters agree. Kappa
+    # is undefined on a single item with no variance, which is why the
+    # assertion is on raw agreement — the quantity that is defined here.
+    assert judge_agreement(At(0.75, "a"), At(0.99, "b"), items).raw_agreement == 1.0
+    # 0.68 and 0.72 straddle it, so a 0.04 gap is a real disagreement
+    # while the 0.24 gap above was not.
     assert judge_agreement(At(0.68, "a"), At(0.72, "b"), items).raw_agreement == 0.0
 
 

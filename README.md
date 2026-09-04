@@ -288,11 +288,16 @@ variants.
 **Inter-judge agreement, and why 1.000 isn't reassuring.** Cohen's kappa
 rather than raw agreement, because raw agreement is inflated whenever one
 verdict dominates. The two keyless raters diverge by up to 0.320 on the
-probes yet agree on all 40 golden-set answers — and that combination is a
-fact about the *data*, not the judges: the extractive baseline copies
-sentences verbatim, so every answer is trivially grounded under any
-lexical formulation. High agreement on easy data is not evidence of judge
-reliability.
+probes yet agree on all 40 golden-set answers — including which 15 to
+reject, so this is genuine agreement with variance, not the degenerate
+case where kappa is undefined.
+
+The reason they agree is the point: the probes separate them on
+**padding**, and the extractive baseline never pads — it copies sentences
+verbatim. The one thing these formulations disagree about doesn't occur
+in this data. So agreement here is evidence the *data* lacks the
+separating feature, not evidence either rater is right. Both are still
+lexical, and both still score contradictions as faithful.
 
 ---
 
@@ -467,7 +472,7 @@ python notebooks/04_generation.py             # grounding + refusal (no key need
 python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 
-pytest tests/ -q                              # 317 tests
+pytest tests/ -q                              # 319 tests
 ```
 
 For the transformer embedding arm and the later LLM phases, see
@@ -530,7 +535,7 @@ src/
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
                06 judge audit
-tests/         317 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         319 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       figures

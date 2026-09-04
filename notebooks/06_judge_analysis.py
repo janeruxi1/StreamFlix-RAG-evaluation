@@ -319,7 +319,11 @@ agreement = judge_agreement(judge, reference_judge, items)
 
 print(f"  {label_a} vs {label_b}, n={agreement.n}\n")
 print(f"    raw agreement : {agreement.raw_agreement:.1%}")
-print(f"    Cohen's kappa : {agreement.kappa:.3f}   ({agreement.interpretation})")
+if agreement.has_variance:
+    print(f"    Cohen's kappa : {agreement.kappa:.3f}   ({agreement.interpretation})")
+else:
+    print(f"    Cohen's kappa : undefined")
+    print(f"                    {agreement.interpretation}")
 print(f"    disagreements : {len(agreement.disagreements)}")
 
 for item_id, sa, sb in agreement.disagreements[:5]:
@@ -336,27 +340,32 @@ print(f"""
   Max divergence between these two raters on the bias probes: {probe_gap:.3f}
 """)
 
+n_faithful = sum(judge.faithfulness(a, c).score >= 0.7 for _, a, c in items)
+
 if len(agreement.disagreements) == 0 and probe_gap >= MATERIAL_DELTA:
     print(f"""  So they ARE different raters — up to {probe_gap:.3f} apart on the probes —
-  and they still agree on every one of the {agreement.n} golden-set answers.
+  and they still agree on all {agreement.n} golden-set answers, including
+  which {agreement.n - n_faithful} to reject. Both raters vary ({n_faithful}/{agreement.n} judged faithful),
+  so this is genuine perfect agreement rather than the degenerate case
+  where kappa is undefined because nobody ever disagreed with anything.
 
-  That combination is the finding, and it is about the DATA, not the
-  judges. The extractive baseline copies sentences verbatim out of the
-  retrieved context, so every answer it produces is trivially grounded
-  under any lexical formulation. Term overlap and sentence coverage
-  cannot disagree about text that was lifted whole.
+  Why they agree here despite diverging on the probes: the disagreement
+  the probes expose is about PADDING. Term overlap punishes filler words
+  because they are absent from the context; sentence coverage does not,
+  because a padded sentence can still be mostly grounded. The extractive
+  baseline never pads — it copies sentences verbatim — so the one thing
+  these two formulations disagree about does not occur in this data.
 
-  The general lesson is worth stating because it is easy to get wrong:
-  high inter-judge agreement on easy data is not evidence that either
-  judge is reliable. A kappa of 1.000 here measures the absence of hard
-  cases, and reporting it as judge reliability would be the same
-  category error as the baseline's perfect citation precision in Phase
-  4 and its 1.000 faithfulness in Phase 5.
+  That is worth stating carefully, because it is the opposite of a
+  reassuring result. Agreement here is evidence that the DATA lacks the
+  feature that separates the raters, not evidence that either rater is
+  right. Both are still lexical, and both still score contradictions as
+  faithful (Phase 5, Section B).
 
-  Agreement becomes informative once answers are PARAPHRASED — a
-  generator that restates rather than copies is where two scoring
-  formulations start to diverge, and where a semantic judge starts to
-  disagree with both.
+  Agreement becomes informative once answers are PARAPHRASED. A
+  generator that restates rather than copies produces exactly the
+  padding-like variation these formulations treat differently — and a
+  semantic judge would then disagree with both.
 """)
 elif len(agreement.disagreements) == 0:
     print("""  The two raters agree everywhere AND barely differ on the probes, so
@@ -497,9 +506,8 @@ Audited {judge.name} on three dimensions beyond accuracy.
    Gaps smaller than the judge's own run-to-run variation are not small
    effects, they are unmeasurable ones.
 
-5. AGREEMENT: kappa {agreement.kappa:.3f} ({agreement.interpretation}).
-   Reported over chance-corrected agreement rather than raw, because
-   raw agreement is inflated whenever one verdict dominates.
+5. AGREEMENT: {"kappa " + format(agreement.kappa, ".3f") if agreement.has_variance else "UNDEFINED"}.
+   {"Chance-corrected rather than raw, because raw agreement is inflated whenever one verdict dominates." if agreement.has_variance else "Both raters called every answer faithful, so expected agreement is 1.0 and kappa is 0/0. Reporting the raw 100% as reliability would be the error this metric exists to prevent."}
 
 {'' if has_key else '''NOT YET MEASURED — no credential. The lexical judge was audited, which
 is genuinely informative about IT, but the comparison this phase exists
