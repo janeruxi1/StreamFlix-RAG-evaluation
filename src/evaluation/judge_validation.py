@@ -30,6 +30,7 @@ cannot substitute for a model here.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from src.evaluation.judge import Judge, Judgement
@@ -168,8 +169,140 @@ VALIDATION_CASES: list[ValidationCase] = [
     ),
 ]
 
+
+# ---------------------------------------------------------------------
+# Second batch — built from corpus articles, one case per kind per topic.
+#
+# Nine hand-written cases were a floor test whose 80% gate meant 7 versus
+# 8 correct: one flipped verdict moved the result across the line. Each
+# topic below yields all five kinds from one context, so the suite grows
+# without hand-authoring forty unrelated scenarios, and each kind has
+# enough cases that per-kind accuracy is not a single coin flip.
+#
+# (context, question, supported answer, fabricated answer,
+#  contradicted answer, off-topic answer, reference)
+# ---------------------------------------------------------------------
+_TOPICS = [
+    ("[bill-004] Failed or declined payments\n"
+     "We attempt the charge up to four times over eight days: on the "
+     "billing date, then at days 3, 5, and 8. Your account remains active "
+     "during this window. Access is suspended on day 9. Your profiles, "
+     "viewing history, and My List are preserved.",
+     "What happens when my payment fails?",
+     "StreamFlix retries up to four times over eight days, and your "
+     "account stays active meanwhile. Access is suspended on day 9.",
+     "StreamFlix retries four times over eight days, and you will receive "
+     "a $5 late fee if all attempts fail.",
+     "StreamFlix retries once, and your account is suspended immediately.",
+     "Your profiles, viewing history, and My List are preserved.",
+     "Four retries over eight days; access suspended on day 9."),
+    ("[acct-003] Managing profiles\n"
+     "Every StreamFlix account supports up to 5 profiles, on all plans. "
+     "Set a 4-digit PIN on any profile in Manage profiles. Deleting a "
+     "profile permanently removes its viewing history. The primary "
+     "account profile cannot be deleted.",
+     "How many profiles can I have?",
+     "An account supports up to 5 profiles, on all plans.",
+     "An account supports up to 5 profiles, and each one can use a "
+     "different payment method.",
+     "An account supports up to 2 profiles, on Premium only.",
+     "You can set a 4-digit PIN on any profile.",
+     "Up to 5 profiles on every plan."),
+    ("[dev-001] Supported devices\n"
+     "Supported mobile systems are iOS 15 and later and Android 9 and "
+     "later. Not supported: Windows Phone, devices running Android below "
+     "9, smart TVs from before 2018, and rooted or jailbroken devices.",
+     "Does StreamFlix work on an old Android phone?",
+     "Android 9 and later is supported; devices running Android below 9 "
+     "are not.",
+     "Android 9 and later is supported, and older phones can use a "
+     "legacy app from the website.",
+     "Android 5 and later is supported, including rooted devices.",
+     "Smart TVs from before 2018 are not supported.",
+     "Only Android 9 or later."),
+    ("[strm-002] Buffering and playback problems\n"
+     "Try these in order: restart the app, restart your device, restart "
+     "your router and modem waiting 30 seconds before powering on, move "
+     "closer to the router or use a wired connection. Lower playback "
+     "quality in Account > Playback settings.",
+     "What should I do if a show keeps buffering?",
+     "Restart the app, then your device, then your router, and consider "
+     "lowering playback quality in Playback settings.",
+     "Restart the app and your device, and call StreamFlix support, who "
+     "will reset your streaming server.",
+     "Do not restart anything; buffering is always caused by the "
+     "StreamFlix service.",
+     "Move closer to the router or use a wired connection.",
+     "Restart app, device, router; lower quality."),
+    ("[trial-001] How the 14-day free trial works\n"
+     "New customers get a 14-day free trial. A payment method is required "
+     "to start. You are charged the plan price when the trial ends unless "
+     "you cancel before then. Each household can use one trial.",
+     "How long is the free trial?",
+     "The free trial lasts 14 days, and a payment method is required to "
+     "start it.",
+     "The free trial lasts 14 days, and you can extend it once by "
+     "contacting support.",
+     "The free trial lasts 30 days and requires no payment method.",
+     "Each household can use one trial.",
+     "14 days."),
+    ("[bill-002] Refund policy\n"
+     "Refunds are available within 30 days of a charge. Contact support "
+     "with your account email and the charge date. Refunds return to the "
+     "original payment method.",
+     "Where does a refund go?",
+     "Refunds return to the original payment method.",
+     "Refunds return to the original payment method within 24 hours, "
+     "guaranteed.",
+     "Refunds are issued as StreamFlix credit only.",
+     "Contact support with your account email and the charge date.",
+     "To the original payment method."),
+]
+
+
+def _batch_two() -> list[ValidationCase]:
+    cases = []
+    for i, (ctx, q, ok, fab, contra, off, ref) in enumerate(_TOPICS, 1):
+        cases += [
+            ValidationCase(f"val2-supported-{i}", "supported", q, ctx, ok,
+                           ref, True, True),
+            ValidationCase(f"val2-fabricated-{i}", "fabricated", q, ctx, fab,
+                           ref, False, True,
+                           "Plausible extra fact absent from the context."),
+            ValidationCase(f"val2-contradicted-{i}", "contradicted", q, ctx,
+                           contra, ref, False, True,
+                           "States the opposite of the context."),
+            ValidationCase(f"val2-offtopic-{i}", "off_topic", q, ctx, off,
+                           ref, True, False,
+                           "Faithful to context, answers another question."),
+            ValidationCase(f"val2-refusal-{i}", "refusal", q, ctx,
+                           "I don't have enough information to answer "
+                           "that.", ref, True, True,
+                           "Vacuously faithful: no claims made."),
+        ]
+    return cases
+
+
+VALIDATION_CASES += _batch_two()
+
 HIGH_THRESHOLD = 0.7      # what counts as "high" for a 0-1 judgement
 LOW_THRESHOLD = 0.5       # what counts as "low"
+
+
+def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for a proportion.
+
+    Wilson rather than the normal approximation: accuracy here sits near
+    1.0 on a small n, exactly where the normal interval is wrong (it can
+    exceed 1 and has poor coverage).
+    """
+    if n == 0:
+        return (0.0, 1.0)
+    p = successes / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
 
 
 @dataclass(frozen=True)
@@ -213,6 +346,14 @@ class ValidationReport:
         return correct / n
 
     @property
+    def overall_ci(self) -> tuple[float, float]:
+        """95% Wilson interval on overall accuracy (judgements, n = 2/case)."""
+        n = 2 * len(self.results)
+        correct = sum(r.faithfulness_correct + r.relevancy_correct
+                      for r in self.results)
+        return wilson_interval(correct, n)
+
+    @property
     def parse_failures(self) -> int:
         return sum(not r.faithfulness.parsed_ok or not r.relevancy.parsed_ok
                    for r in self.results)
@@ -238,8 +379,14 @@ class ValidationReport:
         The bar is deliberately blunt: a judge scoring below 80% on cases
         this unambiguous is not measuring what it claims to, and its
         numbers on real answers should not be reported as evidence.
+
+        The point estimate alone is not enough. On a small suite a lucky
+        run can clear 80% while the plausible true accuracy is far lower,
+        so the lower end of the 95% interval must also stay above 70%.
         """
-        return self.overall_accuracy >= 0.8 and self.parse_failures == 0
+        return (self.overall_accuracy >= 0.8
+                and self.overall_ci[0] >= 0.7
+                and self.parse_failures == 0)
 
 
 def validate_judge(judge: Judge,

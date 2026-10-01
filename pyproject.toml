@@ -1,0 +1,11 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["notebooks"]   # .py notebooks use top-level scripts and E402 by design
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]                # long prose lines in docstrings are intentional
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

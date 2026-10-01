@@ -159,7 +159,11 @@ def test_lexical_judge_fails_on_contradictions(articles):
     fix — it is what 'semantic' means, demonstrated rather than asserted.
     """
     report = validate_judge(LexicalJudge())
-    contradicted = [r for r in report.results if r.case.kind == "contradicted"]
+    # Only the hand-written near-verbatim contradictions (val-contradicted-*):
+    # the second batch (val2-*) rewords more freely, and an overlap judge
+    # may catch those by accident, which is not the property under test.
+    contradicted = [r for r in report.results
+                    if r.case.case_id.startswith("val-contradicted")]
     assert contradicted
     assert all(r.faithfulness.score >= 0.7 for r in contradicted), \
         "expected overlap to rate contradictions as faithful"
@@ -285,9 +289,9 @@ def test_get_judge_returns_lexical_without_a_provider():
 
 def test_end_to_end_evaluation_runs_without_a_credential():
     """The whole harness must work keyless, or CI cannot exercise it."""
-    from src.retrieval.retrievers import BM25Retriever
     from src.generation.extractive import ExtractiveAnswerer
     from src.generation.pipeline import RAGPipeline
+    from src.retrieval.retrievers import BM25Retriever
 
     arts = load_corpus()
     golden = load_golden_set()[:12]
@@ -381,3 +385,33 @@ def test_refuse_everything_does_not_score_perfect_faithfulness(by_article):
     assert rep.n_answered == 0
     assert rep.faithfulness != rep.faithfulness or rep.faithfulness == 0.0 \
         or str(rep.faithfulness) == "nan"   # undefined, not 1.0
+
+
+# ---------------------------------------------------------------------
+# Validation suite size and statistical gate
+# ---------------------------------------------------------------------
+def test_suite_has_enough_cases_per_kind():
+    from collections import Counter
+    counts = Counter(c.kind for c in VALIDATION_CASES)
+    assert len(VALIDATION_CASES) >= 35
+    assert all(n >= 6 for n in counts.values()), counts
+
+
+def test_case_ids_are_unique():
+    ids = [c.case_id for c in VALIDATION_CASES]
+    assert len(ids) == len(set(ids))
+
+
+def test_wilson_interval_properties():
+    from src.evaluation.judge_validation import wilson_interval
+    lo, hi = wilson_interval(78, 78)
+    assert hi == pytest.approx(1.0) and 0.9 < lo < 1.0
+    lo, hi = wilson_interval(39, 78)
+    assert lo < 0.5 < hi
+    assert wilson_interval(0, 0) == (0.0, 1.0)
+
+
+def test_gate_requires_ci_lower_bound_not_just_point_estimate():
+    """Passing 80% on 5 judgements is luck, not evidence."""
+    from src.evaluation.judge_validation import wilson_interval
+    assert wilson_interval(4, 5)[0] < 0.7

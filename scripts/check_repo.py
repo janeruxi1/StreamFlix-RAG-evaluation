@@ -71,9 +71,9 @@ def check_notebooks() -> None:
         # Match the ASSIGNMENT, not the bare substring — the corrected
         # setup cell explains the old bug in a comment, and a naive
         # substring check flags its own documentation.
-        code_lines = [l for l in setup.split("\n") if not l.lstrip().startswith("#")]
-        if any(re.search(r"PROJECT_ROOT\s*=\s*Path\.cwd\(\)\.parent", l)
-               for l in code_lines):
+        code_lines = [ln for ln in setup.split("\n") if not ln.lstrip().startswith("#")]
+        if any(re.search(r"PROJECT_ROOT\s*=\s*Path\.cwd\(\)\.parent", ln)
+               for ln in code_lines):
             problems.append(
                 f"{nb_path.name}: setup cell uses Path.cwd().parent, which "
                 f"assumes the kernel started in notebooks/. Launch Jupyter "
@@ -90,7 +90,8 @@ def check_notebooks() -> None:
         body = "\n".join(src.split("\n")[tree.body[1].lineno - 1:])
         code = "".join("".join(c["source"]) for c in nb["cells"]
                        if c["cell_type"] == "code")
-        norm = lambda s: re.sub(r"\s+", "", s)
+        def norm(s):
+            return re.sub(r"\s+", "", s)
         # Normalise the notebook ONCE. Recomputing it per source line is
         # O(lines x notebook_size) and turns a fast check into a hang on
         # the larger notebooks.
@@ -125,7 +126,7 @@ def check_text_files(files: list[Path]) -> None:
                 continue
             if raw and not raw.endswith(b"\n"):
                 problems.append(f"{path.relative_to(ROOT)}: no trailing newline")
-            if any(l != l.rstrip() for l in text.split("\n")):
+            if any(ln != ln.rstrip() for ln in text.split("\n")):
                 problems.append(f"{path.relative_to(ROOT)}: trailing whitespace")
             if re.search(r"^(<{7} |={7}$|>{7} )", text, re.M):
                 problems.append(f"{path.relative_to(ROOT)}: merge conflict marker")

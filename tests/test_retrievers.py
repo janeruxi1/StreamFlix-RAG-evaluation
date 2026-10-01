@@ -4,11 +4,10 @@ The property that matters most here is FAIRNESS: every arm must index the
 same text and return the same object type, or the bake-off compares the
 setup rather than the method.
 """
-import numpy as np
 import pytest
 
 from src.corpus.build import load_corpus
-from src.retrieval.chunking import markdown_section, whole_article
+from src.retrieval.chunking import markdown_section
 from src.retrieval.embedding import TfidfSvdEmbedder
 from src.retrieval.retrievers import (
     BM25Retriever,

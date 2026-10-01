@@ -7,12 +7,9 @@ than only checking that outputs look reasonable.
 """
 import math
 
-import numpy as np
 import pytest
 
 from src.corpus.build import load_corpus
-from src.retrieval.chunking import whole_article
-from src.retrieval.vectorstore import SearchHit
 from src.evaluation.retrieval_metrics import (
     CostedConfig,
     aggregate,
@@ -26,6 +23,8 @@ from src.evaluation.retrieval_metrics import (
     selection_optimism,
     stratified_split,
 )
+from src.retrieval.chunking import whole_article
+from src.retrieval.vectorstore import SearchHit
 
 
 @pytest.fixture(scope="module")

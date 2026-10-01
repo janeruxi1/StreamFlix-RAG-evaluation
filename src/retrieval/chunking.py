@@ -31,7 +31,7 @@ which is what lets Phase 3 score retrieval against ground truth.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Iterable
 
 from src.corpus.build import Article

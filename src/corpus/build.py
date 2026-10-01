@@ -20,12 +20,12 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.corpus.golden_set import GOLDEN_QUESTIONS
 from src.corpus.seed_articles import (
     ARTICLES,
     COVERAGE_GAPS,
     KNOWN_CORPUS_FLAWS,
 )
-from src.corpus.golden_set import GOLDEN_QUESTIONS
 
 CORPUS_DIR = Path("data/corpus")
 GOLDEN_DIR = Path("data/golden_set")

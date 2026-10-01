@@ -24,6 +24,7 @@ The generated notebook:
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 import sys
@@ -128,6 +129,15 @@ def build(stem: str) -> int:
             if part:
                 cells.append(_code(part))
 
+    # nbformat 4.5+ requires cell ids. They are derived from content, not
+    # random: nbformat's own normalize() mints fresh random ids on every
+    # run, which made the CI "regenerate and diff" gate fail on any
+    # machine with nbformat installed and pass nowhere else.
+    for i, cell in enumerate(cells):
+        digest = hashlib.sha1(
+            f"{stem}:{i}:{''.join(cell['source'])}".encode("utf-8")).hexdigest()
+        cell["id"] = digest[:8]
+
     notebook = {
         "cells": cells,
         "metadata": {
@@ -142,18 +152,6 @@ def build(stem: str) -> int:
     path = NOTEBOOKS / f"{stem}.ipynb"
     path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n",
                     encoding="utf-8")
-
-    # nbformat 4.5+ requires cell ids; normalize adds them.
-    try:
-        import nbformat
-        nb = nbformat.read(str(path), as_version=4)
-        nbformat.validator.normalize(nb)
-        nbformat.write(nb, str(path))
-        raw = path.read_bytes()
-        if not raw.endswith(b"\n"):
-            path.write_bytes(raw + b"\n")
-    except ImportError:
-        print("  (nbformat not installed — cell ids not added)")
 
     return len(cells)
 

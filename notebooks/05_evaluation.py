@@ -182,7 +182,8 @@ An LLM judge is a measuring instrument. An uncalibrated instrument
 produces numbers, not measurements.
 
 {len(VALIDATION_CASES)} cases where the correct verdict follows from how the case was
-written, not from an opinion:
+written, not from an opinion. The gate needs 80% accuracy AND a 95% CI
+lower bound of 70%, so a lucky pass on a small suite does not count:
 
   supported     every claim appears in the context
   fabricated    a plausible fact the context never states
@@ -201,7 +202,9 @@ report = validate_judge(judge)
 print(f"  Judge: {report.judge}\n")
 print(f"    faithfulness accuracy : {report.faithfulness_accuracy:>6.1%}")
 print(f"    relevancy accuracy    : {report.relevancy_accuracy:>6.1%}")
-print(f"    overall               : {report.overall_accuracy:>6.1%}")
+print(f"    overall               : {report.overall_accuracy:>6.1%}"
+      f"   (95% Wilson CI {report.overall_ci[0]:.1%}-{report.overall_ci[1]:.1%},"
+      f" n={2 * len(report.results)} judgements)")
 print(f"    parse failures        : {report.parse_failures}")
 print(f"    TRUSTWORTHY           : {report.is_trustworthy}")
 

@@ -21,23 +21,23 @@ scikit-learn>=1.3
 # exact cosine search in numpy is faster than an ANN index and exactly
 # correct. See src/retrieval/vectorstore.py for the full rationale.
 
-# RAG evaluation
-ragas>=0.2
-datasets>=2.19          # ragas dependency
+# NOTE: no ragas. Context precision/recall are computed exactly from the
+# golden labels and the judge is implemented in src/evaluation/judge.py.
 
 # Text processing
 tiktoken>=0.7           # token counting for chunk sizing
 
 # Visualization
 matplotlib>=3.7
-seaborn>=0.12
 
-# Notebook / app
+# Notebook / demo app
 jupyterlab>=4.0
+nbformat>=5.9
 streamlit>=1.28
 
-# Testing
+# Testing / lint
 pytest>=7.4
+ruff>=0.5
 
 # Security tooling (dev only — see .pre-commit-config.yaml)
 pre-commit>=3.7
