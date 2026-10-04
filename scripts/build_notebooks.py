@@ -24,7 +24,6 @@ The generated notebook:
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
 import re
 import sys
@@ -129,14 +128,16 @@ def build(stem: str) -> int:
             if part:
                 cells.append(_code(part))
 
-    # nbformat 4.5+ requires cell ids. They are derived from content, not
-    # random: nbformat's own normalize() mints fresh random ids on every
-    # run, which made the CI "regenerate and diff" gate fail on any
-    # machine with nbformat installed and pass nowhere else.
-    for i, cell in enumerate(cells):
-        digest = hashlib.sha1(
-            f"{stem}:{i}:{''.join(cell['source'])}".encode("utf-8")).hexdigest()
-        cell["id"] = digest[:8]
+    # nbformat 4.5+ requires cell ids. They are the cell's position as a
+    # string ("0", "1", ...), which is exactly what the nbstripout
+    # pre-commit hook rewrites ids to. Any other scheme (random ids from
+    # nbformat's normalize(), or content hashes) gets rewritten by the
+    # hook on every commit and then differs from what this script
+    # regenerates, so the commit fails or the CI sync gate does. Keys are
+    # inserted in alphabetical order to match the hook's output byte for
+    # byte.
+    cells = [dict(sorted({**cell, "id": str(i)}.items()))
+             for i, cell in enumerate(cells)]
 
     notebook = {
         "cells": cells,
