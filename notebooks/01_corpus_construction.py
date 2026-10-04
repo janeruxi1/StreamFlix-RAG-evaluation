@@ -49,11 +49,11 @@ from src.corpus.build import (
 )
 from src.corpus.difficulty import (
     BM25,
-    count_tokens,
+    estimate_tokens,
     evaluate_lexical_baseline,
+    exact_token_count,
     most_similar_pairs,
     question_article_overlap,
-    tokenizer_available,
 )
 from src.corpus.seed_articles import COVERAGE_GAPS, KNOWN_CORPUS_FLAWS
 
@@ -108,11 +108,16 @@ for cat, n in cat_counts.items():
     bar = "█" * n
     print(f"  {cat:<12} {n:>3}  {bar}")
 
-corpus_df["tokens"] = [count_tokens(a.as_document()) for a in articles]
+# Estimated, not exact — on purpose. This column feeds chunk sizing and
+# context budgets downstream, so it must not change with what happens to
+# be installed. An earlier version used tiktoken when present and fell
+# back silently when not, which made the chunking itself (and so every
+# later number) depend on an optional package.
+corpus_df["tokens"] = [estimate_tokens(a.as_document()) for a in articles]
 
 w = corpus_df["words"]
 t = corpus_df["tokens"]
-exact = "exact (tiktoken)" if tokenizer_available() else "approximate (fallback)"
+exact_counts = [exact_token_count(a.as_document()) for a in articles]
 
 print(f"\nArticle length:")
 print(f"  {'':<10} {'words':>8} {'tokens':>8}")
@@ -122,7 +127,15 @@ print(f"  {'min':<10} {w.min():>8} {t.min():>8}")
 print(f"  {'median':<10} {int(w.median()):>8} {int(t.median()):>8}")
 print(f"  {'mean':<10} {w.mean():>8.0f} {t.mean():>8.0f}")
 print(f"  {'max':<10} {w.max():>8} {t.max():>8}")
-print(f"\n  Token counts are {exact}.")
+print(f"\n  Token counts are ESTIMATES (words x 1.3), identical on every machine.")
+if all(c is not None for c in exact_counts):
+    exact_total = sum(exact_counts)
+    print(f"  Calibration against tiktoken, for display only: {exact_total:,} exact "
+          f"vs {t.sum():,} estimated")
+    print(f"  ({exact_total / t.sum() - 1:+.1%}). Nothing downstream reads the exact count.")
+else:
+    print("  tiktoken is not available here, so no calibration is shown. On this")
+    print("  corpus the estimate runs about 5.5% below the exact count.")
 
 # Embedding-window headroom. BGE-small and most sentence-transformers
 # models truncate at 512 tokens; anything above that is silently cut.
@@ -134,8 +147,9 @@ if len(over_limit):
     print(over_limit[["article_id", "tokens"]].to_string(index=False))
     print("  ⚠️  These would be silently truncated if embedded whole.")
 else:
-    print(f"  ✓ Longest article is {t.max()} tokens — "
-          f"{EMBED_LIMIT - t.max()} tokens of headroom.")
+    print(f"  ✓ Longest article is ~{t.max()} estimated tokens — "
+          f"{EMBED_LIMIT - t.max()} of headroom,")
+    print("    far more than the ~5.5% the estimate runs low by.")
 
 print(f"""
 Why this matters for Phase 2: every article fits inside a single

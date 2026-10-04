@@ -17,7 +17,9 @@ Usage:
 The generated notebook:
   - has no outputs (a cell output can bake a leaked credential into git
     history permanently)
-  - carries cell ids, which nbformat 4.5+ requires
+  - carries cell ids, which nbformat 4.5+ requires. They are the cell's
+    position ("0", "1", ...), assigned here with no library involved —
+    see the note in build() for why
   - replaces the .py's __file__-based path setup with a root finder that
     works wherever Jupyter was launched
 """
@@ -139,21 +141,27 @@ def build(stem: str) -> int:
         "nbformat_minor": 5,
     }
 
-    path = NOTEBOOKS / f"{stem}.ipynb"
-    path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    # Cell ids are the cell's position, written here directly.
+    #
+    # This used to call nbformat's normalize() when nbformat was
+    # installed and skip ids when it was not. Three tools then disagreed
+    # about the same file: a laptop with nbformat wrote RANDOM ids, CI
+    # (no nbformat) regenerated with NO ids, and the nbstripout hook
+    # rewrote them as "0", "1", ... on commit. The CI sync gate compared
+    # the first two and could not pass, and every commit was rewritten
+    # by the third.
+    #
+    # Positional ids are what nbstripout produces, so the hook now finds
+    # nothing to change, and no optional package can alter the output.
+    # Keys are sorted and the file ends in one newline because that is
+    # the layout nbformat writes — again so the hook is a no-op.
+    for i, cell in enumerate(cells):
+        cell["id"] = str(i)
 
-    # nbformat 4.5+ requires cell ids; normalize adds them.
-    try:
-        import nbformat
-        nb = nbformat.read(str(path), as_version=4)
-        nbformat.validator.normalize(nb)
-        nbformat.write(nb, str(path))
-        raw = path.read_bytes()
-        if not raw.endswith(b"\n"):
-            path.write_bytes(raw + b"\n")
-    except ImportError:
-        print("  (nbformat not installed — cell ids not added)")
+    path = NOTEBOOKS / f"{stem}.ipynb"
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(notebook, indent=1, ensure_ascii=False,
+                           sort_keys=True) + "\n")
 
     return len(cells)
 

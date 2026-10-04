@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from src.corpus.difficulty import count_tokens
+from src.corpus.difficulty import estimate_tokens
 from src.generation.prompts import (
     PromptVariant,
     citation_precision,
@@ -135,7 +135,7 @@ class RAGPipeline:
             answerer=self.answerer.name,
             hits=hits,
             latency_s=elapsed,
-            prompt_tokens=count_tokens(prompt) if prompt else 0,
+            prompt_tokens=estimate_tokens(prompt) if prompt else 0,
             gt_article_ids=tuple(question.get("gt_article_ids", ())),
         )
 

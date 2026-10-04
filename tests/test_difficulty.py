@@ -11,7 +11,7 @@ import pytest
 from src.corpus.build import load_corpus, load_golden_set, write_corpus, write_golden_set
 from src.corpus.difficulty import (
     BM25,
-    count_tokens,
+    estimate_tokens,
     evaluate_lexical_baseline,
     jaccard,
     most_similar_pairs,
@@ -212,13 +212,13 @@ def test_emergent_near_duplicate_is_documented(documents):
 # ---------------------------------------------------------------------
 # Token counting
 # ---------------------------------------------------------------------
-def test_count_tokens_is_positive():
-    assert count_tokens("the refund policy applies for 30 days") > 0
+def test_estimate_tokens_is_positive():
+    assert estimate_tokens("the refund policy applies for 30 days") > 0
 
 
-def test_count_tokens_scales_with_length():
-    short = count_tokens("refund policy")
-    long = count_tokens("refund policy " * 50)
+def test_estimate_tokens_scales_with_length():
+    short = estimate_tokens("refund policy")
+    long = estimate_tokens("refund policy " * 50)
     assert long > short * 10
 
 
@@ -227,4 +227,6 @@ def test_every_article_fits_embedding_window(corpus_and_golden):
     models. An article over the limit would be silently truncated."""
     articles, _ = corpus_and_golden
     for a in articles:
-        assert count_tokens(a.as_document()) <= 512, a.article_id
+        # The estimate runs ~5.5% low on this corpus, so require headroom
+        # well beyond that rather than testing right at the limit.
+        assert estimate_tokens(a.as_document()) <= 512 * 0.8, a.article_id

@@ -20,9 +20,12 @@ BM25 is implemented here rather than pulled from a library so the
 scoring is inspectable and has no extra dependency. It is the standard
 Okapi BM25 with k1=1.5, b=0.75.
 
-Token counting uses tiktoken where available and falls back to a
-word-based approximation, since the exact tokenizer matters for chunk
-sizing in Phase 2 but the fallback is adequate for a corpus profile.
+Token counts come in two kinds, kept deliberately apart. Anything that
+DECIDES something — a chunk boundary, a context budget, a number the memo
+asserts — uses `estimate_tokens`, which is pure arithmetic and identical
+on every machine. `exact_token_count` uses tiktoken when it is installed
+and is for display only. See the note above `estimate_tokens` for the
+bug that separation fixes.
 """
 from __future__ import annotations
 
@@ -235,26 +238,55 @@ def most_similar_pairs(documents: dict[str, str],
 # ---------------------------------------------------------------------
 # Token counting — Phase 2 needs tokens, not words
 # ---------------------------------------------------------------------
-def count_tokens(text: str, model: str = "cl100k_base") -> int:
-    """Token count via tiktoken, with a word-based fallback.
+# There used to be one function here, `count_tokens`, which asked
+# tiktoken for an exact count and silently fell back to a word-based
+# estimate when tiktoken was missing or could not load its encoding.
+#
+# That fallback was not cosmetic. The count decides which markdown
+# sections get merged, so the SAME code produced 202 chunks without
+# tiktoken and 209 with it. CI has no tiktoken; `pip install -r
+# requirements.txt` installs it. Every downstream number therefore
+# depended on an optional package, the memo's verification passed in CI
+# and described a pipeline nobody following the README would get, and
+# nothing raised an error at any point.
+#
+# The fix is to stop letting an optional dependency make decisions:
+#
+#   estimate_tokens     deterministic, dependency-free. Used for every
+#                       chunk boundary, every context cost, and every
+#                       number the memo asserts.
+#   exact_token_count   tiktoken when available, else None. Display only.
+#
+# The estimate runs low. Measured on this corpus it gives 7,888 tokens
+# against tiktoken's 8,323, so exact counts are about 5.5% higher. Token
+# figures in this project are estimates and are labelled as such.
+TOKENS_PER_WORD = 1.3
 
-    Chunk sizes in Phase 2 are specified in tokens and embedding models
-    have hard token limits, so word counts are not sufficient for
-    planning. The fallback (~1.3 tokens per word) is close enough for a
-    corpus profile when tiktoken is unavailable.
+
+def estimate_tokens(text: str) -> int:
+    """Deterministic token estimate: whitespace words x 1.3, truncated.
+
+    Identical on every machine and every run, which is the property that
+    matters for anything a result depends on. It is an estimate, not a
+    tokenizer — see the calibration note above.
+    """
+    return int(len(text.split()) * TOKENS_PER_WORD)
+
+
+def exact_token_count(text: str, model: str = "cl100k_base") -> int | None:
+    """Exact count via tiktoken, or None when it is unavailable.
+
+    For display only. Returning None rather than falling back is the
+    point: a caller cannot mistake an estimate for an exact count, and
+    cannot build behaviour on a value that changes with the environment.
     """
     try:
         import tiktoken
         return len(tiktoken.get_encoding(model).encode(text))
     except Exception:
-        return int(len(text.split()) * 1.3)
+        return None
 
 
 def tokenizer_available() -> bool:
     """Whether exact token counts are available in this environment."""
-    try:
-        import tiktoken
-        tiktoken.get_encoding("cl100k_base")
-        return True
-    except Exception:
-        return False
+    return exact_token_count("probe") is not None

@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
 from src.corpus.build import Article
-from src.corpus.difficulty import count_tokens
+from src.corpus.difficulty import estimate_tokens
 
 
 @dataclass(frozen=True)
@@ -71,7 +71,9 @@ class Chunk:
 
     @property
     def n_tokens(self) -> int:
-        return count_tokens(self.embed_text)
+        """Estimated tokens — deterministic, so profiles and the tests
+        that bound chunk size do not change with what is installed."""
+        return estimate_tokens(self.embed_text)
 
 
 # ---------------------------------------------------------------------
@@ -117,6 +119,11 @@ def markdown_section(articles: Iterable[Article],
 
     Sections below `min_tokens` are merged forward — a two-line heading
     stub embeds to noise.
+
+    The threshold is compared against `estimate_tokens`, never an exact
+    tokenizer. This comparison is a chunk boundary, and a boundary that
+    moves when an optional package is installed makes every downstream
+    number environment-dependent (it did: 202 chunks vs 209).
     """
     chunks: list[Chunk] = []
     for a in articles:
@@ -124,7 +131,7 @@ def markdown_section(articles: Iterable[Article],
 
         merged: list[str] = []
         for section in sections:
-            if merged and count_tokens(section) < min_tokens:
+            if merged and estimate_tokens(section) < min_tokens:
                 merged[-1] = merged[-1] + "\n\n" + section
             else:
                 merged.append(section)

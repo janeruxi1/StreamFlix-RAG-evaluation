@@ -368,9 +368,13 @@ def context_tokens(hits: list[SearchHit]) -> int:
     Uses `generation_text`, not `embed_text` — the sentence-window
     strategy deliberately passes a wider context than it embeds, and
     charging it for the narrow text would understate what it costs.
+
+    Counted with `estimate_tokens`. Cost selects the configuration (the
+    Pareto frontier and the budget picks), so it has to be the same
+    number on every machine.
     """
-    from src.corpus.difficulty import count_tokens
-    return sum(count_tokens(h.chunk.generation_text) for h in hits)
+    from src.corpus.difficulty import estimate_tokens
+    return sum(estimate_tokens(h.chunk.generation_text) for h in hits)
 
 
 @dataclass(frozen=True)
