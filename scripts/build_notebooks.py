@@ -13,6 +13,7 @@ A build step that only exists on one machine is not a build step.
 Usage:
     python scripts/build_notebooks.py              # all notebooks
     python scripts/build_notebooks.py 04_generation # just one
+    python scripts/build_notebooks.py --check      # verify, write nothing
 
 The generated notebook:
   - has no outputs (a cell output can bake a leaked credential into git
@@ -104,8 +105,8 @@ def _code(text: str) -> dict:
             "outputs": [], "source": text.rstrip().splitlines(keepends=True)}
 
 
-def build(stem: str) -> int:
-    """Regenerate one notebook. Returns its cell count."""
+def render(stem: str) -> dict:
+    """Build one notebook from its .py source, as a dict. Writes nothing."""
     source = (NOTEBOOKS / f"{stem}.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     docstring = ast.get_docstring(tree)
@@ -157,21 +158,81 @@ def build(stem: str) -> int:
     # the layout nbformat writes — again so the hook is a no-op.
     for i, cell in enumerate(cells):
         cell["id"] = str(i)
+    return notebook
 
+
+def build(stem: str) -> int:
+    """Regenerate one notebook on disk. Returns its cell count."""
+    notebook = render(stem)
     path = NOTEBOOKS / f"{stem}.ipynb"
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(notebook, indent=1, ensure_ascii=False,
                            sort_keys=True) + "\n")
+    return len(notebook["cells"])
 
-    return len(cells)
+
+def _content(notebook: dict) -> list[tuple[str, str]]:
+    """What a notebook SAYS: each cell's type and source, nothing else."""
+    return [(c.get("cell_type", ""), "".join(c.get("source", [])))
+            for c in notebook.get("cells", [])]
+
+
+def check(stem: str) -> str | None:
+    """Whether the committed .ipynb matches its .py source. None if it does.
+
+    Compares CONTENT — cell types and cell source — not bytes.
+
+    The gate used to regenerate every notebook and fail on any byte of
+    difference. But opening a notebook in Jupyter or VS Code rewrites its
+    metadata block with the local kernel's name and Python version, and
+    the commit hook strips outputs without touching that. So a notebook
+    whose code was identical to its source failed the gate for recording
+    that someone had opened it with a kernel called "base" on 3.13 — and
+    the build stayed red on every push, with nothing actually stale.
+
+    A check that fails on harmless differences gets ignored, and then it
+    is not there on the day a notebook really has drifted. Kernel
+    metadata is a fact about one machine; the cells are the notebook.
+    """
+    path = NOTEBOOKS / f"{stem}.ipynb"
+    if not path.exists():
+        return f"{stem}.ipynb does not exist"
+    try:
+        committed = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        return f"{stem}.ipynb is not valid JSON ({exc})"
+
+    expected, actual = _content(render(stem)), _content(committed)
+    if expected == actual:
+        return None
+    if len(expected) != len(actual):
+        return (f"{stem}.ipynb has {len(actual)} cells, its source builds "
+                f"{len(expected)}")
+    first = next(i for i, (e, a) in enumerate(zip(expected, actual)) if e != a)
+    return f"{stem}.ipynb differs from its source at cell {first}"
 
 
 def main(argv: list[str]) -> int:
-    stems = argv[1:] or sorted(p.stem for p in NOTEBOOKS.glob("*.py"))
+    args = argv[1:]
+    checking = "--check" in args
+    stems = ([a for a in args if a != "--check"]
+             or sorted(p.stem for p in NOTEBOOKS.glob("*.py")))
     for stem in stems:
         if not (NOTEBOOKS / f"{stem}.py").exists():
             print(f"  {stem}: no such .py source")
             return 1
+
+    if checking:
+        problems = [p for p in (check(stem) for stem in stems) if p]
+        for problem in problems:
+            print(f"  STALE  {problem}")
+        if problems:
+            print("\n  Run `python scripts/build_notebooks.py` and commit the result.")
+            return 1
+        print(f"  {len(stems)} notebooks match their .py sources.")
+        return 0
+
+    for stem in stems:
         print(f"  {stem}: {build(stem)} cells")
     return 0
 

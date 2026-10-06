@@ -640,7 +640,7 @@ python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
 
-pytest tests/ -q                              # 365 tests
+pytest tests/ -q                              # 373 tests
 ```
 
 Token counts throughout are **estimates** (words × 1.3), computed the
@@ -682,8 +682,11 @@ the project root, or in a parent folder holding several projects.
 their `.py` sources, and `python scripts/check_repo.py` enforces the
 repo-wide invariants (stripped outputs, `.py`/`.ipynb` parity, encoding,
 no credential shapes) across every file rather than just the current
-diff. CI runs both before the tests, and fails if the notebooks have
-drifted from their sources.
+diff. CI runs `build_notebooks.py --check` and `check_repo.py` before
+the tests, and fails if a notebook's cells have drifted from its source.
+The check compares cell content, not bytes: opening a notebook rewrites
+its kernel metadata, which is a fact about one machine and not a change
+to the notebook.
 
 ---
 
@@ -727,7 +730,7 @@ src/
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
                06 judge audit · 07 decision memo + verification
-tests/         365 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         373 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       decision_memo.md, PROJECT_SUMMARY.md, scenario_brief.md,
