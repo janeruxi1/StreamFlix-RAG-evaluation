@@ -39,14 +39,12 @@ jobs:
         run: python -c "from src.corpus.build import write_corpus, write_golden_set; write_corpus(); write_golden_set()"
 
       - name: Notebooks are in sync with their .py sources
-        # Regenerate and fail if anything changed. A .ipynb that has
-        # drifted from its source is a notebook nobody has actually run.
-        run: |
-          python scripts/build_notebooks.py
-          git diff --exit-code notebooks/ || (
-            echo "::error::notebooks/ is stale — run scripts/build_notebooks.py"
-            exit 1
-          )
+        # A .ipynb that has drifted from its source is a notebook nobody
+        # has actually run. Compared on cell content, not bytes: opening
+        # a notebook rewrites its kernel metadata, and the byte-for-byte
+        # version of this check failed every push on exactly that while
+        # no cell had changed.
+        run: python scripts/build_notebooks.py --check
 
       - name: Repo-wide invariants
         # Scans EVERY file, not just the diff. Added after notebook 02 was

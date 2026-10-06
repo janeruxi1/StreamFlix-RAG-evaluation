@@ -157,6 +157,11 @@ the work.
 - **First credentialed run:** the notebook sync gate could not pass in CI.
   Cell ids were random locally, absent in CI, and rewritten by the
   commit hook, so three tools disagreed about every notebook.
+- **First green build:** the notebook sync gate compared bytes, so a
+  notebook that had merely been opened — its kernel metadata rewritten
+  to "base" on Python 3.13 — failed it with no cell changed. Every
+  recorded build back to early September had failed. It now compares
+  cell content.
 - **After the credentialed run:** the length-bias probes were written for
   a judge that counts words. A judge that counts claims found real added
   claims in two of them, so the measured "bias" was partly the probes.
@@ -197,7 +202,7 @@ reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
                metrics/   measured records from the credentialed run
                llm_run/   that run's output and environment manifest
 scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py
-tests/         365 tests
+tests/         373 tests
 ```
 
 Everything runs with **no API key**: CI installs no LLM client and fails
