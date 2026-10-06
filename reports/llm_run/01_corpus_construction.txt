@@ -1,0 +1,337 @@
+==============================================================================
+A. BUILD — materialize corpus and golden set to disk
+==============================================================================
+
+Wrote 45 articles      -> data/corpus/*.md
+Wrote 120 golden questions -> data/golden_set/golden_questions.json
+
+Loaded back: 45 articles, 120 questions
+
+The round trip is deliberate. The retrieval pipeline reads markdown
+files from disk the way a real ingestion job would, rather than
+importing Python objects. It also makes corpus changes reviewable as
+a diff.
+
+
+==============================================================================
+B. CORPUS PROFILE
+==============================================================================
+
+Articles by category:
+  account        8  ████████
+  billing       10  ██████████
+  content        6  ██████
+  devices        9  █████████
+  streaming      8  ████████
+  trial          4  ████
+
+Article length:
+                words   tokens
+  ---------- -------- --------
+  total         5,870    7,888
+  min             107      145
+  median          132      176
+  mean            130      175
+  max             162      217
+
+  Token counts are ESTIMATES (words x 1.3), identical on every machine.
+  Calibration against tiktoken, for display only: 8,323 exact vs 7,888 estimated
+  (+5.5%). Nothing downstream reads the exact count.
+
+Embedding-window check (limit 512 tokens):
+  Articles exceeding the limit: 0
+  ✓ Longest article is ~217 estimated tokens — 295 of headroom,
+    far more than the ~5.5% the estimate runs low by.
+
+Why this matters for Phase 2: every article fits inside a single
+embedding window, so we are never FORCED to chunk. That makes the
+chunking ablation a genuine experiment — does splitting help or hurt
+retrieval? — rather than a workaround for a hard constraint. Whole-article
+embedding becomes a legitimate arm in the Phase 3 bake-off.
+
+Five least-recently-updated articles:
+article_id                       title last_updated
+  bill-009   About the Basic Plus plan   2024-06-03
+  bill-002               Refund policy   2025-08-02
+  cont-001 Why titles leave StreamFlix   2025-09-14
+  strm-004              Audio problems   2025-09-22
+  acct-002 Changing your email address   2025-10-09
+
+bill-009 is the deliberately stale one — see Section E.
+
+
+==============================================================================
+C. GOLDEN-SET PROFILE
+==============================================================================
+
+Questions by category:
+  category          n  designed   match
+  -------------- ---- --------- -------
+  single_hop       60        60       ✓
+  multi_hop        20        20       ✓
+  ambiguous        15        15       ✓
+  out_of_scope     25        25       ✓
+
+Ground-truth sources per question (in-scope only):
+  1 article     62 questions  ██████████████████████████████████████████████████████████████
+  2 articles    22 questions  ██████████████████████
+  3 articles     5 questions  █████
+  4 articles     6 questions  ██████
+
+Read: 33 of 95 in-scope questions require more than one
+article. A retriever that only ever returns top-1 will fail those
+regardless of how good its ranking is — which is exactly what the
+top-k sweep in Phase 3 is designed to expose.
+
+
+==============================================================================
+D. GROUND-TRUTH COVERAGE
+==============================================================================
+
+Articles exercised by at least one question: 43/45 (96%)
+Articles never cited (retrieval distractors):  2
+    bill-009     About the Basic Plus plan
+    cont-006     Content ratings explained
+
+Uncited articles are not a defect. A corpus where every document is
+someone's answer is unrealistically easy — real retrieval has to
+reject plausible-but-wrong neighbours. These are the distractors.
+
+Most-cited articles (highest retrieval pressure):
+  strm-007     11 questions   Simultaneous streams by plan
+  strm-001     10 questions   Video quality settings
+  acct-003      9 questions   Managing profiles
+  strm-006      6 questions   Downloads for offline viewing
+  bill-001      5 questions   How StreamFlix billing works
+  bill-004      5 questions   Failed or declined payments
+  strm-003      5 questions   Bandwidth requirements by resolution
+  dev-007       5 questions   Browser requirements
+
+==============================================================================
+E. DELIBERATE FLAWS — the traps and what each tests
+==============================================================================
+
+A corpus without flaws produces an evaluation without findings. These
+are planted, documented, and each has matching golden questions that
+probe it.
+
+1. [CONTRADICTION] contradiction-refund-window
+   Articles: bill-002, bill-003
+   bill-002 states a 30-day refund window; bill-003 states 14 days. A correct system should surface the conflict or hedge, not assert one figure confidently.
+   Probed by 7 question(s): mh-004, mh-006, mh-008, mh-011, am-001, am-009 ...
+
+2. [OUTDATED] outdated-basic-plus
+   Articles: bill-009
+   Documents the Basic Plus tier, discontinued in 2025 and absent from the current pricing table in bill-001. Last updated 2024-06-03.
+   Probed by 0 questions — this is a DISTRACTOR-type flaw.
+   Its job is to be retrieved and be wrong, so it is measured
+   by contamination rather than by recall:
+     pulled into the top 5 for 10/120 questions
+     reached the top 3 for     8/120 questions
+     e.g. sh-005, sh-021, sh-030, sh-052, mh-001
+   It is never a correct answer to anything, so every one of
+   those is context the generator has to ignore.
+
+3. [NEAR_DUPLICATE] near-duplicate-device-setup
+   Articles: dev-003, dev-004, dev-005
+   Roku / Apple TV / Fire TV setup articles are structurally near-identical. Tests whether retrieval returns the right sibling rather than a plausible neighbour.
+   Probed by 7 question(s): sh-046, sh-047, sh-048, sh-049, sh-050, mh-002 ...
+
+4. [NEAR_DUPLICATE] near-duplicate-cancellation
+   Articles: bill-003, trial-004
+   DISCOVERED, NOT PLANTED. Surfaced by the Phase 1 similarity analysis as the corpus's most lexically similar pair (~32% Jaccard), above the planted device cluster. Both describe the same cancellation flow for different account states — paid subscription vs active trial — and differ mainly in the consequences, which is exactly what a user asking 'how do I cancel' needs disambiguated. Probed by am-009.
+   Probed by 6 question(s): mh-004, mh-008, mh-011, mh-017, am-001, am-009
+
+COVERAGE GAPS (8 topics with no article at all):
+  - gift subscriptions and gift cards
+  - business, corporate, and educational accounts
+  - accessibility features (screen readers, audio description)
+  - live sports and live event streaming
+  - password-sharing enforcement and extra-member fees
+  - GDPR data export and subject access requests
+  - affiliate and partner programmes
+  - physical merchandise and DVDs
+
+These gaps generate the 25 out-of-scope questions. A system that
+answers them is hallucinating — it has no source to ground on. This
+is the single most important guardrail in the project, because a
+confidently wrong answer about a refund or a charge is worse for a
+support team than no answer at all.
+
+The hardest refusals are the ones with an ADJACENT article:
+  oos-007  audio description   -> subtitles article is nearby but silent
+  oos-010  password sharing    -> stream limits are nearby but not policy
+  oos-024  season release date -> releases article explains where to look
+  oos-025  goodwill credit     -> refund policy is nearby but narrower
+
+Those four are where a weak system will most likely over-answer.
+
+
+==============================================================================
+E2. BENCHMARK DIFFICULTY — the floor every later result is measured against
+==============================================================================
+
+A RAG project that reports "our retriever achieves 94% recall" without
+saying what keyword matching achieves has reported nothing. If BM25
+already gets 91%, the dense retriever earned 3 points, not 94.
+
+So before any embedding model is chosen or any API key is spent, we
+establish the floor: pure lexical BM25, no embeddings, no LLM.
+
+BM25 lexical baseline (out-of-scope excluded — no ground truth):
+
+  category          n    hit@1    hit@3    hit@5  recall@5
+  -------------- ---- -------- -------- -------- ---------
+  single_hop       60   66.7%   86.7%   93.3%    93.3%
+  multi_hop        20   70.0%   95.0%  100.0%    67.9%
+  ambiguous        15   40.0%   80.0%   80.0%    48.9%
+  -------------- ---- -------- -------- -------- ---------
+  ALL in-scope     95   63.2%   87.4%   92.6%    81.0%
+
+>>> FINDING — this reshapes the Phase 3 experiment design.
+
+BM25 reaches 93.3% recall@5 on single-hop questions. Dense
+retrieval has roughly 7 points of headroom there — thin.
+
+The headroom lives elsewhere:
+    multi_hop    67.9%  ->    32 points available
+    ambiguous    48.9%  ->    51 points available
+
+Two consequences, both of which change what Phase 3 does:
+
+  1. BM25 becomes a FIRST-CLASS ARM in the retrieval bake-off, not a
+     footnote. Reporting a dense-retrieval number without the lexical
+     floor beside it would overstate the contribution.
+
+  2. Results get reported PER CATEGORY, never as a single aggregate.
+     The aggregate (81.0%) hides the entire story — it is
+     dominated by the 60 single-hop questions where the baseline is
+     already strong.
+
+This is also why production RAG systems use hybrid retrieval. Lexical
+search is genuinely hard to beat on direct factual lookup; dense
+retrieval earns its cost on paraphrase, multi-source, and ambiguity.
+
+Question / ground-truth-title lexical overlap:
+  Mean overlap of question content words with GT titles: 15.7%
+  Questions sharing NO title word with ground truth:     47/95 (49%)
+
+49% of in-scope questions share no content word with their
+ground-truth article title. The questions were written to sound like a
+subscriber, not to echo the documentation — "Why is the picture blurry
+partway through a movie?" rather than "video quality settings". That is
+what keeps BM25 honest at 93% rather than near-perfect.
+
+Most lexically similar article pairs (Jaccard on content words):
+
+  32.1%  bill-003   / trial-004   <- DISCOVERED, not planted
+  30.5%  dev-004    / dev-005     <- planted device cluster
+  27.7%  trial-001  / trial-002
+  26.7%  dev-003    / dev-005     <- planted device cluster
+  23.8%  bill-001   / bill-006
+  22.5%  acct-004   / cont-006
+  21.0%  bill-004   / trial-002
+  20.9%  dev-003    / dev-004     <- planted device cluster
+
+>>> FINDING — the analysis caught a near-duplicate I did not plant.
+
+All three planted device-setup pairs rank in the top 8, so that trap
+works. But the single most confusable pair in the corpus is one I never
+designed: bill-003 (canceling your subscription) and trial-004
+(canceling during your trial).
+
+That makes sense in hindsight. Both describe the same cancellation flow
+for different account states, and differ mainly in the consequences —
+a paid cancellation keeps access to period end, a trial cancellation
+avoids the charge entirely. Which is exactly the distinction a user
+asking the bare question "how do I cancel?" needs drawn for them, and
+exactly what am-009 probes.
+
+It is now recorded in KNOWN_CORPUS_FLAWS as a discovered rather than
+planted flaw, with a regression test so a later corpus edit cannot
+silently remove it. Worth stating plainly: the planted traps test what I
+anticipated, and this one tests something I did not.
+
+
+==============================================================================
+F. INTEGRITY AUDIT
+==============================================================================
+  ✓ Article IDs unique
+  ✓ Question IDs unique
+  ✓ All ground-truth references resolve
+  ✓ Out-of-scope questions carry no ground truth
+  ✓ In-scope questions all have ground truth
+  ✓ Category balance matches design
+  ✓ All articles substantive (>= 80 words)
+
+Integrity problems: 0
+  ✓ none — golden-set labels are safe to measure against
+
+--------------------------------------------------------------------------
+LIMITATIONS OF THIS GOLDEN SET — stated plainly
+
+  1. SINGLE ANNOTATOR. The corpus and the questions were written by the
+     same author, so ground-truth labels are self-assigned. There is no
+     inter-annotator agreement statistic because there is one annotator.
+     A production benchmark would have at least two people label
+     independently and report Cohen's kappa. The mitigation here is
+     mechanical rather than statistical: the integrity checks above
+     catch structural errors (dangling references, mislabelled scope),
+     but they cannot catch a question whose "correct" article is
+     arguably wrong.
+
+  2. AMBIGUOUS LABELS ARE JUDGEMENT CALLS. For the 15 ambiguous
+     questions, "which articles are relevant" is genuinely debatable.
+     Context-precision scores on that slice should be read as
+     directional, not exact.
+
+  3. SYNTHETIC CORPUS. Article phrasing is consistent and well-formed
+     because one author wrote it in one sitting. Real help centres are
+     written by many people over years and are messier. This likely
+     makes retrieval EASIER here than in production.
+
+  4. CLEAN QUESTION PHRASING. Questions are grammatical and typo-free.
+     Real support queries are terse and misspelled ("cant login on tv").
+     Phase 6 revisits this as a robustness check rather than pretending
+     the current set covers it.
+
+Naming these matters more than fixing them. A benchmark whose limits are
+documented can be reasoned about; one presented as flawless cannot.
+--------------------------------------------------------------------------
+
+
+Saved -> reports\figures/01_corpus_composition.png
+
+==============================================================================
+PHASE 1 VERDICT
+==============================================================================
+
+Built and audited:
+
+  Corpus         45 articles, 5,870 words / 7,888 tokens, 6 categories
+  Golden set     120 questions across 4 difficulty types
+  Distractors    2 articles never cited as ground truth
+  Planted flaws  4 documented, 8 coverage gaps
+  Integrity      0 problems
+
+  BM25 floor     single-hop 93% | multi-hop 68% | ambiguous 49% recall@5
+                 Every Phase 3 result is reported against this baseline.
+
+What this buys the later phases:
+
+  Phase 3 (retrieval bake-off) can compute context precision and
+  recall against real labels rather than eyeballing results, and the
+  33 multi-source questions make top-k a measurable trade-off
+  rather than a guess.
+
+  Phase 5 (evaluation harness) has a reference answer for every
+  question, so faithfulness is scored against ground truth instead of
+  the model's own retrieved context.
+
+  Phase 6 (failure analysis) has 25 out-of-scope questions to
+  measure hallucination, and 4 of them sit next to a topically
+  adjacent article — the hardest refusals, where over-answering is
+  most likely.
+
+Handoff to Phase 2: chunking strategy, embedding model, and vector
+store, producing the retrieval baseline that Phase 3 then attacks.

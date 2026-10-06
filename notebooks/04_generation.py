@@ -330,7 +330,7 @@ if has_key:
     # is left out because it is not reproducible and would make every
     # re-run look like a changed result.
     def _num(x):
-        return None if x is None or pd.isna(x) else round(float(x), 4)
+        return None if x is None or pd.isna(x) else round(float(x), 6)
 
     fabricated = {
         name: sum(1 for r in res
@@ -354,6 +354,9 @@ if has_key:
                 "uncited_answer_rate": _num(row["uncited"]),
                 "mean_prompt_tokens_estimated": _num(row["tokens"]),
                 "fabricated_citations": fabricated[row["answerer"]],
+                "mean_answer_words": _num(np.mean(
+                    [len(r.answer.split()) for r in runs[row["answerer"]]
+                     if not r.refusal.is_refusal] or [float("nan")])),
             }
             for row in rows
         },
@@ -438,10 +441,22 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.2))
 
 ax1.scatter(df["answer_in"], df["refuse_oos"], s=110,
             color="#5B8FF9", edgecolor="white", zorder=3)
-for _, r in df.iterrows():
-    ax1.annotate(r.answerer.replace("llm_", ""),
-                 (r.answer_in, r.refuse_oos),
-                 textcoords="offset points", xytext=(7, 5), fontsize=8)
+# Labels are stacked rather than drawn at a fixed offset. The arms that
+# matter land on top of each other — three at 100% refusal, two at
+# exactly (100%, 0%) — and a fixed offset prints their names as one
+# unreadable smear, on the one chart where telling them apart is the point.
+placed: list[tuple[float, float]] = []
+for _, r in df.sort_values(["refuse_oos", "answer_in"]).iterrows():
+    x, y = float(r.answer_in), float(r.refuse_oos)
+    k = sum(1 for px, py in placed if abs(px - x) < 0.12 and abs(py - y) < 0.08)
+    placed.append((x, y))
+    near_top, near_right = y > 0.9, x > 0.9
+    ax1.annotate(f"{r.answerer.replace('llm_', '')} ({x:.0%})", (x, y),
+                 textcoords="offset points",
+                 xytext=(-8 if near_right else 8,
+                         -(14 + 11 * k) if near_top else 10 + 11 * k),
+                 ha="right" if near_right else "left", va="center",
+                 fontsize=8.5)
 ax1.set_xlabel("Answer rate on in-scope questions  (helpfulness)")
 ax1.set_ylabel("Refusal rate on out-of-scope  (safety)")
 ax1.set_title("The trade-off\ntop-right is better; nothing reaches it",
@@ -605,17 +620,18 @@ judge.
    rather than a judge call. Cheap mechanical checks first; the judge
    budget is for what genuinely needs it.
 
-{'' if has_key else '''NOT YET MEASURED — no API credential was present, so no LLM arm ran.
-The harness is verified end to end on the extractive baseline, and the
-same code scores the LLM arms unchanged. Add a key and re-run to
-populate the comparison.
+{'' if has_key else '''NOT MEASURED IN THIS RUN — no API credential was present, so no LLM
+arm ran here. The harness is verified end to end on the extractive
+baseline, and the same code scores the LLM arms unchanged. The LLM arms'
+measured results from the credentialed run are recorded in
+reports/metrics/04_generation_arms.json.
 
 '''}STILL OPEN — carried into Phase 5:
 
-  - Answer CORRECTNESS is unmeasured. Everything here is structural:
-    did it refuse, did it cite, was the evidence there. Whether an
-    answer is faithful to its context and actually addresses the
-    question needs a judge.
+  - Answer CORRECTNESS is not addressed here. Everything in this phase
+    is structural: did it refuse, did it cite, was the evidence there.
+    Whether an answer is faithful to its context and actually addresses
+    the question needs a judge.
   - The contradiction case (mh-011) retrieves both refund windows at
     depth {DEPTH}. Whether any variant flags the conflict rather than
     silently picking one is a Phase 5 question.

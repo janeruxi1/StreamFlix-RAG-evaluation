@@ -1,9 +1,9 @@
 # Project Summary — StreamFlix RAG Evaluation
 
 **What was built + what was found.** Single-page catalog of the project's
-components and headline results. Every number here is verified against
-live notebook output by `notebooks/07_decision_memo.py`, which CI runs
-and which fails the build on drift.
+components and headline results. The decision memo's numbers are checked
+by `notebooks/07_decision_memo.py`, which CI runs and which fails the
+build on drift.
 
 ---
 
@@ -19,10 +19,12 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable; the retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-**Headline outcome.** Ship the retrieval layer (**0.882** context recall
-at ~**591 context tokens**/query). Hold the generation layer — it is
-built, tested, and **unmeasured**, because no LLM arm has run. The split
-is the recommendation, not a hedge.
+**Headline outcome.** Ship the retrieval layer. Pilot the `cited`
+generation layer with a support agent in the loop. Do not ship the
+`naive` prompt. The cited arm refused **25 of 25** unanswerable questions
+with **0** fabricated citations and **0.984** faithfulness — and 25
+questions can only bound its true refusal rate at **86.7%**, which is why
+the recommendation is a pilot.
 
 ---
 
@@ -46,15 +48,30 @@ that confidently answers one is worse than one that says "I don't know."
 
 ## Headline numbers
 
+**Retrieval** (BM25, `markdown_section`, depth 15 — recomputed in CI)
+
 | Metric | Value | Read against |
 |---|---:|---|
-| context recall | **0.882** | — |
+| context recall | **0.882** | 0.967 at the top of the table, for 4.4x the context |
 | context precision | **0.211** | ceiling **0.441** → 48% of what's structurally possible |
-| context cost | **~591 tokens** | 4.5× cheaper than the top-of-table config |
-| extractive baseline, in-scope answer rate | **62.1%** | a floor for non-LLM methods |
-| extractive baseline, out-of-scope refusal | **56.0%** | — |
-| judge accuracy on the validation gate | **50%** | 80% required — **fails** |
-| judge length bias | **−0.521** | material on 3/3 probes |
+| context cost | **~571 estimated tokens** | under a 600-token budget |
+
+**Generation** (`gpt-4o-mini`, judged by `gpt-4o` — from the measured records)
+
+| Arm | Refuses out-of-scope | Answers in-scope | Faithfulness (answered) | Correctness |
+|---|---:|---:|---:|---:|
+| extractive baseline | 56.0% | 62.1% | 0.810 | 0.268 |
+| `naive` | 0.0% | 100.0% | 0.764 | 0.795 |
+| `cited` | 100.0% | 80.0% | 0.984 | 0.733 |
+
+**The judge**
+
+| Check | Result |
+|---|---|
+| validation gate (9 known-verdict cases) | `gpt-4o` **100%**, lexical judge **50%** |
+| length probes | longer answer scored lower on **2 of 3**, for stated reasons that name added claims |
+| per-word penalty, tested on real answers | predicted −0.171, observed −0.015 [−0.040, +0.010] |
+| self-consistency | identical on repeat |
 
 ---
 
@@ -64,45 +81,43 @@ that confidently answers one is worse than one that says "I don't know."
 |---|---|---|
 | 1 | 45-article corpus + 120-question golden set | BM25 gets **93.3%** recall@5 on single-hop — the floor is high, so per-category reporting is mandatory |
 | 2 | 5 chunking strategies, 2 embedding backends, vector store | `fixed_token_256` was a silent no-op: the same words as `whole_article`, one chunk per article |
-| 3 | 48-configuration bake-off | recall@k is monotone in k, so **no quality metric can select depth** — it's a cost decision |
-| 4 | 5 prompt variants + extractive baseline + refusal detection | safety and helpfulness move against each other; every variant scored as a *pair* |
-| 5 | Evaluation harness with a validated judge | context metrics are **computed, not judged** — ground truth exists, so using an LLM would be strictly worse |
-| 6 | Judge bias audit | the audited judge **penalises** length by −0.521, the opposite of the documented LLM-judge bias |
-| 7 | Decision memo + verification | 14 memo claims recomputed; CI fails on drift |
+| 3 | 48-configuration bake-off (64 with the transformer arm) | recall@k is monotone in k, so **no quality metric can select depth** — it's a cost decision |
+| 4 | 5 prompt variants + extractive baseline + refusal detection | "use only the context" produced **zero** refusals; explicit permission to refuse produced 25 of 25 |
+| 5 | Evaluation harness with a validated judge | the faithfulness gap between arms was **composition**: 0.984 vs 0.764 overall, 0.984 vs 0.970 on the same questions |
+| 6 | Judge audit | the "length bias" was the probes: the judge named the added claims, and real answers 28 words apart show no penalty |
+| 7 | Decision memo + verification | 53 memo claims checked: 11 recomputed live, 42 against committed records |
 
 ---
 
 ## Five findings worth the reader's time
 
-**1. A lexical baseline had to be beaten, not assumed away.** BM25 reaches
-93.3% recall@5 on single-hop questions. Dense retrieval's advantage over
-it is +0.009 recall (95% CI [−0.023, +0.042], p=0.655) — **not
-statistically distinguishable**, on only 8 of 95 questions.
+**1. A safe-looking prompt that never refuses.** `grounded` tells the
+model to answer only from the context. It answered all 25 unanswerable
+questions. Restricting the *source* of an answer is not the same as
+permitting the model to decline, and only the second changed behaviour.
 
-**2. Ranking a depth sweep by recall is arithmetic, not evidence.**
-recall@k cannot decrease as k grows, and MRR and nDCG turned out monotone
-too. There is no quality-only metric that selects retrieval depth, which
-makes measuring context cost mandatory rather than a refinement.
+**2. The headline faithfulness comparison was comparing different
+questions.** `cited` 0.984 against `naive` 0.764 looks like a careful
+writer against a careless one. Each arm is averaged over the questions it
+chose to answer. On the 76 both answered it is 0.984 against 0.970,
+−0.015 [−0.040, +0.010]. `cited` is not more careful; it knows when to
+stop.
 
-**3. Context precision must be read against its ceiling.** Raw 0.211 looks
-broken until the ceiling turns out to be 0.441. Per category this
-inverts: `single_hop` looks worst and is *nearest* its limit; the real
-weak spot is `ambiguous` at **22% of a 0.800 ceiling** — most relevant
-material available, least of it found. That's query understanding, not
-ranking.
+**3. A single correctness number hid two opposite effects.** `naive` is
+more correct on answerable questions by +0.160 [+0.102, +0.219] and less
+correct on unanswerable ones by −0.308 [−0.496, −0.116]. They cancel to
++0.062 [−0.007, +0.133], which reads as "no difference".
 
-**4. Two of four RAGAS metrics need no LLM.** Ground-truth labels exist,
-so context precision and recall are *computed*. Using a model to
-approximate something you can calculate is noisier, priced per question,
-irreproducible across model versions, and injects judge error into a
-number that had none.
+**4. Twenty-five out of twenty-five is a bound, not a guarantee.** A
+system failing one time in ten still produces a clean sweep on 25
+questions about 7% of the time. The Wilson lower bound is 86.7%, and
+that number, not the 100%, sets the recommendation.
 
-**5. The judge is validated before it's believed — and it fails.** The
-keyless judge scores 50% on 9 cases with known verdicts. It rates
-contradictions as *fully faithful*, because a contradicting sentence
-reuses nearly every term of the context it contradicts. That failure is
-the argument for a semantic judge, made by measurement rather than
-assertion.
+**5. The instrument has a blind spot, and it is the most expensive
+failure.** Two help articles state different refund windows. `naive`
+asserts one, `cited` names neither, and the judge scored both 0.80
+against a reference that names the conflict. A judge that checks the
+claims an answer makes does not penalise the caveat it leaves out.
 
 ---
 
@@ -121,6 +136,8 @@ the work.
   INCONCLUSIVE, not equivalent.
 - **Phase 5 review:** the judge was being shown different context than the
   generator, which penalised exactly the prompt variants that cite.
+- **Phase 6 review:** Cohen's kappa returned 1.0 where it is mathematically
+  undefined.
 - **First credentialed run:** chunk boundaries depended on whether
   `tiktoken` was installed — 202 chunks in CI, 209 on a machine that had
   run `pip install -r requirements.txt`. Every downstream number moved
@@ -140,20 +157,28 @@ the work.
 - **First credentialed run:** the notebook sync gate could not pass in CI.
   Cell ids were random locally, absent in CI, and rewritten by the
   commit hook, so three tools disagreed about every notebook.
-- **Phase 6 review:** Cohen's kappa returned 1.0 where it is mathematically
-  undefined.
+- **After the credentialed run:** the length-bias probes were written for
+  a judge that counts words. A judge that counts claims found real added
+  claims in two of them, so the measured "bias" was partly the probes.
+- **After the credentialed run:** the judge audit used prompt length as a
+  proxy for answer length. Measured, the shortest instruction (`naive`)
+  writes the longest answers.
+- **After the credentialed run:** the memo quoted ~591 context tokens and
+  the bake-off 571 for the same configuration, from two different
+  multipliers. There is now one definition.
 
 ---
 
-## What is NOT measured
+## What the evidence cannot bear
 
-**No LLM arm has ever run.** Faithfulness, relevancy and correctness have
-a complete harness and zero readings. The generation layer is built,
-tested, and unvalidated — and the memo says so on every line rather than
-implying otherwise.
-
-Closing that gap costs **about $3** in judge calls plus cents of
-generation, in one run of `python scripts/run_llm_eval.py`.
+- **The safety number is 25 questions**, written by the same person who
+  wrote the corpus.
+- **The judge is validated on 9 cases and audited on 5 probes.** No
+  second validated rater exists, and the judge is lenient on omission.
+- **Generation was only measured on the 571-token context.** The
+  0.967-recall configuration might reduce over-refusal or dilute
+  faithfulness; nothing here says which.
+- **One model, one run, one synthetic corpus.**
 
 ---
 
@@ -169,10 +194,13 @@ src/
 notebooks/     01 corpus · 02 chunking · 03 bake-off · 04 generation
                05 evaluation · 06 judge audit · 07 decision memo
 reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
-scripts/       build_notebooks.py, check_repo.py
-tests/         356 tests
+               metrics/   measured records from the credentialed run
+               llm_run/   that run's output and environment manifest
+scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py
+tests/         362 tests
 ```
 
 Everything runs with **no API key**: CI installs no LLM client and fails
 if a credential is present, proving the pipeline degrades rather than
-stops.
+stops. The credentialed run is one command, `python scripts/run_llm_eval.py`,
+and costs about $3.

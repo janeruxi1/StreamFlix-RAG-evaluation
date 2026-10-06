@@ -53,6 +53,7 @@ Sections
   G. mh-011 revisited — correcting Phase 2
   H. Verdict and handoff to Phase 4
 """
+import os
 import sys
 from pathlib import Path
 
@@ -76,6 +77,7 @@ from src.retrieval.retrievers import (
     OracleUnionRetriever,
 )
 from src.retrieval.vectorstore import hits_to_articles
+from src.evaluation.judged_arms import write_metrics
 from src.evaluation.retrieval_metrics import (
     CostedConfig,
     aggregate,
@@ -729,6 +731,131 @@ print("PHASE 3 VERDICT")
 print("=" * 78)
 
 rec = best_under_budget(costed, 600)
+
+# The budget rule returns the highest recall that fits. That is a ranking
+# by a decimal place, and this notebook has spent five sections arguing
+# that a decimal place on 95 questions is not a finding. So the rule's
+# pick is not automatically what ships: it is tested against the
+# SIMPLEST arm on the same chunks at the same depth, and it ships only if
+# it is demonstrably better. BM25 is that arm — no model, no download, no
+# fitted state, exactly reproducible.
+rec_strategy, rec_arm, rec_depth = rec.config.split("|")
+simple_config = f"{rec_strategy}|bm25|{rec_depth}"
+simple = next(c for c in costed if c.config == simple_config)
+
+if rec.config == simple_config:
+    ship, ship_cmp, ship_v = rec, None, None
+else:
+    ship_cmp = paired_bootstrap(
+        per_question[rec.config], per_question[simple_config],
+        metric="recall_at_k", label_a=rec.config, label_b=simple_config)
+    ship_v = equivalence_verdict(ship_cmp, EQUIV_MARGIN)
+    earned = ship_v.verdict == "different" and ship_cmp.difference > 0
+    ship = rec if earned else simple
+
+# What shipping the cheap configuration GIVES UP, stated as a measured
+# difference rather than waved away. Against the top of the table this is
+# usually real: the budget buys a large cut in context, and pays for it.
+top_cmp = paired_bootstrap(
+    per_question[best_raw.config], per_question[ship.config],
+    metric="recall_at_k", label_a=best_raw.config, label_b=ship.config)
+top_v = equivalence_verdict(top_cmp, EQUIV_MARGIN)
+top_reading = (
+    "That difference is real: its interval excludes zero.\n"
+    "   The budget is a trade, not a free saving, and the memo has to say so."
+    if top_v.verdict == "different" else
+    "That difference is not resolved on 95 questions.")
+
+if ship_cmp is None:
+    ship_text = f"""SHIPPING CONFIGURATION:
+   {ship.config}
+   recall {ship.recall:.3f} at {ship.mean_tokens:.0f} tokens/query
+
+   The budget pick is already the simplest arm on these chunks: BM25
+   needs no model, no download and no fitted state, and is exactly
+   reproducible. Nothing more elaborate scored higher inside the budget
+   in this environment."""
+else:
+    by_cat = {}
+    for cat in ("single_hop", "multi_hop", "ambiguous"):
+        a = [s.recall_at_k for s in per_question[rec.config] if s.category == cat]
+        b = [s.recall_at_k for s in per_question[simple_config] if s.category == cat]
+        by_cat[cat] = (float(np.mean(a)), float(np.mean(b)), len(a))
+    cat_lines = "\n".join(
+        f"     {cat:<11} {rec_arm} {a:.3f}   bm25 {b:.3f}   (n={n})"
+        for cat, (a, b, n) in by_cat.items())
+    if ship is rec:
+        reason = f"""   {rec_arm} ships. Its advantage over BM25 on the same chunks at the
+   same depth excludes zero after pairing, so the extra dependency is
+   paid for by a measured gain rather than a ranking."""
+    else:
+        reason = f"""   BM25 ships. The budget rule prefers {rec_arm} by {ship_cmp.difference:+.3f} recall,
+   and that gap is {ship_v.verdict.upper()} — its interval includes zero, and
+   it also reaches past the {EQUIV_MARGIN:.2f} margin, so the data supports neither
+   "better" nor "the same". Only {ship_cmp.n_differing} of {ship_cmp.n_questions} questions differ at all.
+
+   Given an unresolved difference, the simpler system ships: no model
+   download, no fitted state, exactly reproducible. Switching on a
+   {ship_cmp.difference:+.3f} gap would be the noise-reading this notebook argues
+   against. Calling the two equivalent would be the other error."""
+    ship_text = f"""SHIPPING CONFIGURATION:
+   {ship.config}
+   recall {ship.recall:.3f} at {ship.mean_tokens:.0f} tokens/query
+
+   Tested against the budget pick on the same chunks, depth and cost:
+     {rec.config} vs {simple_config}
+     {ship_v}
+
+{reason}
+
+   WHERE they differ is the useful part, and the aggregate hides it:
+{cat_lines}
+
+   The two arms fail on different questions. That is an argument for
+   combining them (a reranker, or fusion tuned on a larger golden set)
+   as the next experiment, and it is not an argument for swapping one
+   for the other."""
+
+if has_transformer:
+    # The transformer arm needs a ~130MB model CI deliberately does not
+    # download, so its results cannot be recomputed there. This record
+    # is what lets the memo's claim about it be checked without a rerun.
+    # Written only when the arm actually ran.
+    write_metrics(Path("reports/metrics") / "03_retrieval_arms.json", {
+        "embedding_model": os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"),
+        "n_configurations": int(len(df)),
+        "n_questions": len(in_scope),
+        "equivalence_margin": EQUIV_MARGIN,
+        "top_of_table": {"config": best_raw.config,
+                         "recall": round(float(best_raw.recall), 6),
+                         "tokens": round(float(best_raw.tokens), 1)},
+        "budget_pick_600": {"config": rec.config,
+                            "recall": round(float(rec.recall), 6),
+                            "tokens": round(float(rec.mean_tokens), 1)},
+        "shipping": {"config": ship.config,
+                     "recall": round(float(ship.recall), 6),
+                     "tokens": round(float(ship.mean_tokens), 1)},
+        "top_vs_shipping": {
+            "difference": round(top_cmp.difference, 6),
+            "ci_low": round(top_cmp.ci_low, 6),
+            "ci_high": round(top_cmp.ci_high, 6),
+            "verdict": top_v.verdict,
+            "context_ratio": round(float(best_raw.tokens / ship.mean_tokens), 2),
+        },
+        "budget_pick_vs_bm25": None if ship_cmp is None else {
+            "difference": round(ship_cmp.difference, 6),
+            "ci_low": round(ship_cmp.ci_low, 6),
+            "ci_high": round(ship_cmp.ci_high, 6),
+            "p_value": round(ship_cmp.p_value, 6),
+            "n_differing": ship_cmp.n_differing,
+            "n_questions": ship_cmp.n_questions,
+            "verdict": ship_v.verdict,
+            "recall_by_category": {
+                cat: {"budget_pick": round(a, 6), "bm25": round(b, 6), "n": n}
+                for cat, (a, b, n) in by_cat.items()},
+        },
+    })
+
 print(f"""
 Swept {len(df)} configurations. Four things came out of it.
 
@@ -765,20 +892,26 @@ Swept {len(df)} configurations. Four things came out of it.
    one to quote, since the dev number is contaminated by having
    chosen the maximum of {len(df)} estimates.""") + f"""
 
-RECOMMENDED CONFIGURATION (<=600 token budget):
+HIGHEST RECALL UNDER A 600-TOKEN BUDGET:
    {rec.config}
    recall {rec.recall:.3f} at {rec.mean_tokens:.0f} tokens/query
 
-   Chosen on the Pareto frontier under a context budget, not by topping
+   Found on the Pareto frontier under a context budget, not by topping
    the raw recall table. It gives up {best_raw.recall - rec.recall:.3f} recall against the
    leader and costs {best_raw.tokens / rec.mean_tokens:.1f}x less context per query.
 
-   Section D named {cheap.config}
-   as the cheapest serious contender. The two differ by {abs(rec.recall - cheap.recall):.3f} recall and {abs(rec.mean_tokens - cheap.tokens):.0f} tokens —
-   the same choice for practical purposes. The budget rule picks the
-   lexical arm because it scores marginally higher for marginally more
-   context; either is defensible, and preferring one on that margin
-   would be exactly the noise-reading this notebook argues against.
+{ship_text}
+
+WHAT THE BUDGET COSTS:
+   {best_raw.config} vs {ship.config}
+   {top_v}
+
+   The top of the table retrieves {top_cmp.difference:+.3f} more recall for {best_raw.tokens / ship.mean_tokens:.1f}x the
+   context. {top_reading}
+   Whether the extra context would help or hurt the ANSWERS is not
+   something a retrieval metric can say — more evidence and more
+   distractors arrive together. It is the first thing to test once the
+   generation layer is judged.
 
 STILL OPEN — carried into Phase 4:
 
@@ -786,12 +919,12 @@ STILL OPEN — carried into Phase 4:
     (~{at_depth['ambiguous'].mean():.2f} at depth {FIXED_DEPTH} vs ~{at_depth['single_hop'].mean():.2f} for single-hop). No
     configuration fixes this, which suggests the problem is query
     understanding rather than ranking.
-  - The transformer arm {'ran' if has_transformer else 'DID NOT RUN here (sentence-transformers absent)'}.
-    {'' if has_transformer else 'Re-run with it installed before treating the dense conclusions as final.'}
+  - The transformer arm {'ran, and is compared against the shipping configuration above.' if has_transformer else 'DID NOT RUN here (sentence-transformers absent).'}
+    {'' if has_transformer else 'The recorded comparison is in reports/metrics/03_retrieval_arms.json.'}
   - Hybrid fusion did not clearly beat its best constituent. RRF was
     used untuned by design; tuning k on 95 questions would fit noise.
 
-HANDOFF TO PHASE 4: build the generation layer on the recommended
+HANDOFF TO PHASE 4: build the generation layer on the shipping
 configuration, and carry the depth/cost trade-off forward — the token
 budget chosen here is the context the generator has to work with.
 """)

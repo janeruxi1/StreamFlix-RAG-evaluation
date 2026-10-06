@@ -1,0 +1,83 @@
+{
+  "arms": {
+    "extractive_baseline": {
+      "answer_rate_in_scope": 0.621053,
+      "citation_precision": 1.0,
+      "fabricated_citations": 0,
+      "mean_answer_words": 24.542857,
+      "mean_prompt_tokens_estimated": 0.0,
+      "over_refusal_rate": 0.369565,
+      "partial_refusal_rate": 0.0,
+      "refusal_f1": 0.588948,
+      "refusal_rate_out_of_scope": 0.56,
+      "uncited_answer_rate": 0.0
+    },
+    "llm_cited": {
+      "answer_rate_in_scope": 0.8,
+      "citation_precision": 1.0,
+      "fabricated_citations": 0,
+      "mean_answer_words": 37.592105,
+      "mean_prompt_tokens_estimated": 786.483333,
+      "over_refusal_rate": 0.173913,
+      "partial_refusal_rate": 0.008333,
+      "refusal_f1": 0.888889,
+      "refusal_rate_out_of_scope": 1.0,
+      "uncited_answer_rate": 0.0
+    },
+    "llm_grounded": {
+      "answer_rate_in_scope": 1.0,
+      "citation_precision": null,
+      "fabricated_citations": 0,
+      "mean_answer_words": 35.641667,
+      "mean_prompt_tokens_estimated": 721.483333,
+      "over_refusal_rate": 0.0,
+      "partial_refusal_rate": 0.0,
+      "refusal_f1": 0.0,
+      "refusal_rate_out_of_scope": 0.0,
+      "uncited_answer_rate": 1.0
+    },
+    "llm_grounded_refusal": {
+      "answer_rate_in_scope": 0.747368,
+      "citation_precision": null,
+      "fabricated_citations": 0,
+      "mean_answer_words": 24.746479,
+      "mean_prompt_tokens_estimated": 773.483333,
+      "over_refusal_rate": 0.228261,
+      "partial_refusal_rate": 0.008333,
+      "refusal_f1": 0.855422,
+      "refusal_rate_out_of_scope": 1.0,
+      "uncited_answer_rate": 1.0
+    },
+    "llm_naive": {
+      "answer_rate_in_scope": 1.0,
+      "citation_precision": null,
+      "fabricated_citations": 0,
+      "mean_answer_words": 67.316667,
+      "mean_prompt_tokens_estimated": 686.408333,
+      "over_refusal_rate": 0.0,
+      "partial_refusal_rate": 0.0,
+      "refusal_f1": 0.0,
+      "refusal_rate_out_of_scope": 0.0,
+      "uncited_answer_rate": 1.0
+    },
+    "llm_strict": {
+      "answer_rate_in_scope": 0.736842,
+      "citation_precision": 1.0,
+      "fabricated_citations": 0,
+      "mean_answer_words": 43.214286,
+      "mean_prompt_tokens_estimated": 796.883333,
+      "over_refusal_rate": 0.23913,
+      "partial_refusal_rate": 0.0,
+      "refusal_f1": 0.848485,
+      "refusal_rate_out_of_scope": 1.0,
+      "uncited_answer_rate": 0.0
+    }
+  },
+  "generation_model": "gpt-4o-mini",
+  "n_questions": 120,
+  "retrieval": {
+    "depth": 15,
+    "retriever": "bm25",
+    "strategy": "markdown_section"
+  }
+}

@@ -72,6 +72,18 @@ def _git(*args: str) -> str:
         return ""
 
 
+def commit_id() -> str:
+    """The short commit hash, seven characters.
+
+    Short on purpose. The full 40-character hash is a high-entropy hex
+    string, which is exactly what the secret scanner looks for: with it
+    in the manifest, the commit hook and CI both refuse the file this
+    script exists to produce. Seven characters identify the commit and
+    sit below the scanner's entropy threshold.
+    """
+    return _git("rev-parse", "--short=7", "HEAD")[:7]
+
+
 def _cache_entries() -> int:
     return len(list(CACHE_DIR.glob("*.json"))) if CACHE_DIR.exists() else 0
 
@@ -214,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "started_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "git_commit": _git("rev-parse", "HEAD"),
+        "git_commit": commit_id(),
         "git_dirty": bool(_git("status", "--porcelain")),
         "python": platform.python_version(),
         "platform": platform.platform(),

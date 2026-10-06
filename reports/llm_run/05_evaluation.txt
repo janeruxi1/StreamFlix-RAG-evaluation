@@ -1,0 +1,379 @@
+==============================================================================
+A. SETUP
+==============================================================================
+
+  Retrieval        : markdown_section + BM25 @ depth 15
+  Questions        : 120
+  Judge            : <LLMJudge name='llm_judge_gpt-4o'>
+  Credential       : True
+
+  Judge calls and cost, at gpt-4o list pricing. An estimate from
+  average prompt sizes, not a quote:
+
+    validation suite (Section B)        :    18 calls   ~$0.05
+    extractive baseline (Sections C-E)  :   360 calls   ~$1.04
+    LLM arms (Section F): naive, cited  :   720 calls   ~$2.09
+    total                               :  1098 calls   ~$3.18
+
+  Generating the LLM answers is served from the Phase 4 cache when the
+  prompts are unchanged, and costs cents on the generation model when
+  they are not. Every response is cached on disk, so re-running this
+  notebook costs nothing.
+
+  The ordering is the cost control. Section B runs first and costs
+  cents. If the judge fails validation there, Section F does not run:
+  the ~$2.09 it would cost would buy numbers from an instrument already
+  known to be miscalibrated. The gate is scientific first and economical
+  second, but it is both.
+
+
+==============================================================================
+B. VALIDATING THE JUDGE — BEFORE TRUSTING ANY SCORE
+==============================================================================
+
+An LLM judge is a measuring instrument. An uncalibrated instrument
+produces numbers, not measurements.
+
+9 cases where the correct verdict follows from how the case was
+written, not from an opinion:
+
+  supported     every claim appears in the context
+  fabricated    a plausible fact the context never states
+  contradicted  a fact that directly opposes the context
+  refusal       no claims made at all
+  off_topic     faithful to the context, answers a different question
+
+The most diagnostic is `contradicted`. A contradicting sentence reuses
+the context's vocabulary almost perfectly — high overlap, opposite
+meaning — so it is the case that separates semantic judgement from term
+matching.
+
+  Judge: llm_judge_gpt-4o
+
+    faithfulness accuracy : 100.0%
+    relevancy accuracy    : 100.0%
+    overall               : 100.0%
+    parse failures        : 0
+    TRUSTWORTHY           : True
+
+  Accuracy by case kind:
+
+    contradicted    100%  ####################
+    fabricated      100%  ####################
+    off_topic       100%  ####################
+    refusal         100%  ####################
+    supported       100%  ####################
+
+  The judge passes at 100%. Its scores below carry that
+  known error rate — which is the point of measuring it. A judge is
+  never perfect; an unmeasured judge is merely a judge whose error rate
+  is unknown.
+
+
+==============================================================================
+C. CONTEXT METRICS — EXACT, NO JUDGE INVOLVED
+==============================================================================
+
+  context_recall    : 0.882
+  context_precision : 0.211
+
+>>> The precision number is meaningless without its ceiling.
+
+  Mean ACHIEVABLE context_precision at depth 15: 0.441
+
+  The ceiling is arithmetic, not a modelling choice. Articles split into
+  ~4.5 chunks on this strategy, so a question whose answer lives in
+  ONE article has at most ~4.5 relevant chunks in existence. Retrieved
+  at depth 15, that caps it near 0.29 — the other slots MUST hold
+  something irrelevant. Questions needing several articles have
+  proportionally more relevant material available, which is why the
+  mean ceiling (0.441) sits above the single-article one (0.294).
+
+  So 0.211 against 0.441 means the retriever achieves 48% of
+  what is structurally possible. Read against an implicit ceiling of 1.0
+  — which is how this metric is usually reported — the same system looks
+  broken.
+
+  The ceiling is the bill for Phase 3's choices arriving: depth 15 buys
+  recall 0.882 and pays with a context window that is ~79%
+  irrelevant text. That trade is what Phase 6 has to weigh, because
+  distractor density is what drives a generator to invent things.
+
+  category         recall  precision   ceiling  % of max
+  ------------------------------------------------------
+  single_hop        0.983      0.186     0.292       63%
+  multi_hop         0.817      0.313     0.620       51%
+  ambiguous         0.561      0.178     0.800       22%
+
+  Reading the columns together inverts the story the raw numbers tell.
+
+  single_hop looks WORST on raw precision (0.186) but is nearest its
+  ceiling (63%). It scores low because one article cannot fill 15
+  slots — not because retrieval is failing. multi_hop's higher precision
+  (0.313) is mostly its higher ceiling (0.620), not better retrieval.
+
+>>> And the real weak spot is ambiguous, at 22% of its ceiling.
+
+  That category has the MOST relevant material available of the three
+  (0.800 ceiling, because these questions map to several articles)
+  and finds the LEAST of it. Raw precision hid this completely —
+  ambiguous and single_hop look almost identical at 0.178 vs 0.186,
+  while one is near its limit and the other is nowhere near.
+
+  This sharpens the open item Phase 3 left. Ambiguous questions were the
+  weak category on recall too, and the pattern across both metrics says
+  the same thing: the system is not failing to rank the right articles,
+  it is failing to work out WHICH articles an underspecified question is
+  about. That is a query-understanding problem, and no amount of
+  retrieval or prompt tuning addresses it.
+
+
+==============================================================================
+D. JUDGED ANSWER QUALITY
+==============================================================================
+
+  answerer                       : extractive_baseline
+  faithfulness (answered only)   : 0.810   <- headline
+  faithfulness (all questions)   : 0.872
+  relevancy                      : 0.547
+  correctness                    : 0.268
+
+  answered 70 of 120 questions; the rest were refusals.
+
+>>> Faithfulness is reported over ANSWERED questions only, and the gap
+    between the two lines above is why.
+
+  A refusal asserts nothing, so a correct judge scores it vacuously
+  faithful at 1.0. Averaging refusals in therefore rewards a system for
+  declining to be useful — and taken to its limit, a system that refuses
+  every question reports PERFECT faithfulness while answering nothing.
+
+  The answered-only figure means what people think faithfulness means:
+  when this system does make claims, how often are they supported. The
+  all-questions figure is kept visible rather than deleted so the
+  inflation is auditable rather than hidden.
+
+  (Here the two run in the opposite direction, because the lexical judge
+  scores refusals near ZERO rather than 1.0 — one of the failures
+  Section B catches. With a judge that handles refusals correctly, the
+  all-questions number would sit ABOVE the answered-only one.)
+
+  Failure modes across all 120 questions:
+
+    over_refusal               34  (28.3%)
+    ok                         32  (26.7%)
+    generation_failure         26  (21.7%)
+    correct_refusal            14  (11.7%)
+    answered_oos               11  ( 9.2%)
+    refused_no_evidence         2  ( 1.7%)
+    faithful_to_wrong_context    1  ( 0.8%)
+
+  These categories are the deliverable, more than the scores are. A
+  single "hallucination rate" would collapse generation_failure,
+  retrieval_failure and over_refusal into one number — and those three
+  have completely different fixes.
+
+==============================================================================
+E. FAILURE ATTRIBUTION — RETRIEVAL OR GENERATION?
+==============================================================================
+
+The thread from Phase 3 arrives here. Cross-tabulating faithfulness
+against whether the evidence was retrieved at all separates two failures
+that look identical in the output and need opposite fixes.
+
+  bucket                        n    share   interpretation
+  ------------------------------------------------------------------------------
+  evidence+faithful            32    26.7%   working as intended
+  evidence+unfaithful          26    21.7%   GENERATION failure — evidence there, ignored
+  no_evidence+faithful          1     0.8%   faithful to wrong context, or refused
+  no_evidence+unfaithful        0     0.0%   RETRIEVAL failure — looks like hallucination
+  refused                      36    30.0%   no claims made; attribution not applicable
+  out_of_scope                 25    20.8%   scored on refusal in Phase 4, not here
+  unjudged                      0     0.0%   no judge available
+
+  Of the unfaithful answers, 26 had the evidence available and 0 did
+  not. Only the first group is addressable by changing the generator.
+
+  Sending all of them to a prompt-engineering fix — the reflex when a
+  dashboard shows "hallucination rate: X%" — would aim 0 of them at
+  the wrong component entirely.
+
+  Saved -> reports\figures/05_evaluation.png
+
+==============================================================================
+F. THE LLM ARMS, JUDGED
+==============================================================================
+
+Everything above scored the extractive baseline. That was the right
+subject for building the harness — free, deterministic, failure modes
+known in advance — and the wrong subject for a deployment decision,
+because nobody proposes to ship the baseline.
+
+An earlier version of this notebook stopped here even with a credential
+present: the key swapped the lexical judge for an LLM judge and then
+aimed it at the same extractive answers. The memo meanwhile described
+the generation layer as one judge run away from being measured. That run
+would have paid a model to grade a copier and left every LLM answer
+unjudged, and nothing would have failed.
+
+So this section does what the write-up always said was being done: it
+runs the judge over LLM answers.
+
+  Arms selected : llm_naive, llm_cited
+  (set JUDGE_ARMS=all, or a comma-separated list, to change this)
+
+  llm_naive: generating over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  llm_naive: judging ...
+    judged 40/120 ...
+    judged 80/120 ...
+    judged 120/120 ...
+  llm_cited: generating over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  llm_cited: judging ...
+    judged 40/120 ...
+    judged 80/120 ...
+    judged 120/120 ...
+
+  answerer               answered  faithful  relevant  correct  gen fail  ret fail  ans OOS
+  -----------------------------------------------------------------------------------------
+  extractive_baseline          70     0.810     0.547    0.268        26         0       11
+  llm_naive                   120     0.764     0.970    0.795         9         3       25
+  llm_cited                    76     0.984     0.962    0.733         3         0        0
+
+  How to read the columns:
+
+    faithful   answered questions only (see Section D for why)
+    correct    agreement with the reference answer, over ALL questions,
+               so it includes the out-of-scope ones — where the reference
+               says the corpus is silent and the right answer is a refusal
+    gen fail   unfaithful although the evidence was retrieved
+    ret fail   unfaithful and the evidence was NOT retrieved — an
+               upstream failure that looks like a hallucination
+    ans OOS    out-of-scope questions answered instead of refused
+
+  Judge replies that could not be parsed (each is scored 0.0, so a
+  large count here means the scores above are deflated, not low):
+
+    extractive_baseline       0 of 360
+    llm_naive                 0 of 360
+    llm_cited                 0 of 360
+
+  Correctness by question type:
+
+  answerer                  single_hop     multi_hop     ambiguous  out_of_scope
+  ------------------------------------------------------------------------------
+  extractive_baseline            0.202         0.175         0.273         0.500
+  llm_naive                      0.932         0.863         0.667         0.492
+  llm_cited                      0.808         0.753         0.293         0.800
+
+  Paired differences in correctness. Both arms answer the same 120
+  questions, so the comparison is per question — the shared difficulty
+  cancels instead of widening the interval.
+
+    llm_naive - llm_cited: +0.063 [-0.007, +0.133]  interval includes zero — not distinguishable
+
+  THE PLANTED CONTRADICTION (mh-011). Two retrieved articles state
+  different refund windows: 14 days and 30 days. Phases 3 and 4 both
+  deferred the question to here: does any arm surface the conflict, or
+  does it assert one figure as though the other source did not exist?
+
+    extractive_baseline
+      stance       : states_neither
+      faithfulness : 0.00   correctness vs reference : 0.00
+      answer       : Unless cancelled first, the subscription converts to a paid plan on day [trial-002] - Returning subscribers, including those whose account was cancelled [trial-003] **If you are charged after cancelling** [trial-004]
+
+    llm_naive
+      stance       : states_one
+      faithfulness : 1.00   correctness vs reference : 0.80
+      answer       : If you were charged after cancelling your subscription, it is likely that the cancellation did not complete. You are eligible to request a refund for any charges taken after a confirmed cancellation. To proceed, please refer to the "Refund policy" for instructions on how to request your refund. Make sure to submit your request within 14 days of the charge date, as requests outside this window are not accepted.
+
+    llm_cited
+      stance       : states_neither
+      faithfulness : 1.00   correctness vs reference : 0.80
+      answer       : If you were charged after cancelling, it likely means the cancellation did not complete. Charges taken after a confirmed cancellation are eligible for a refund; please refer to the "Refund policy" for more details [trial-004].
+
+  `states_both` means both figures appear, which is necessary for
+  surfacing the conflict and not sufficient: an answer can list two
+  windows without saying they disagree. The correctness score is against
+  a reference answer that names the conflict explicitly, so the two
+  columns are read together. Note what faithfulness CANNOT show here: an
+  answer asserting "30 days" is fully faithful, because one retrieved
+  article does say that. An answer can be fully faithful to one of two
+  contradictory sources and still mislead the customer, and only this
+  check and the reference comparison can see it.
+
+  Saved -> reports\metrics/05_judged_arms.json
+
+  That file is the measured record. CI has no key by design and cannot
+  recompute these numbers, so the memo is verified against this record
+  rather than against prose. It is written only by a run that reached
+  this point: a keyless run, or one whose judge failed the gate, leaves
+  it untouched.
+
+
+==============================================================================
+PHASE 5 VERDICT
+==============================================================================
+
+1. THE JUDGE IS VALIDATED BEFORE IT IS USED.
+   llm_judge_gpt-4o scores 100% on 9 cases with known verdicts;
+   trustworthy = True. Reporting faithfulness from an unvalidated
+   judge is reporting a measurement from an uncalibrated instrument,
+   and the gate makes that impossible to do by accident here.
+
+2. CONTEXT METRICS ARE COMPUTED, NOT ESTIMATED.
+   Ground-truth labels exist, so context precision and recall need no
+   model. That makes them exact, free, reproducible, and available even
+   with no credential — the harness degrades rather than stops.
+
+3. CONTEXT PRECISION MUST BE READ AGAINST ITS CEILING.
+   0.211 observed against 0.441 achievable = 48% of what is
+   structurally possible at depth 15. The uncorrected number invites
+   the conclusion that retrieval is broken when it is doing close to the
+   best the chunking and depth allow.
+
+4. FAILURES ARE ATTRIBUTED, NOT AGGREGATED.
+   26 generation failures and 0 retrieval failures among unfaithful
+   answers. A single hallucination rate would merge them and send the
+   fix to whichever component was guessed.
+
+5. TWO METRIC DEFINITIONS THAT DECIDE WHAT THE NUMBERS MEAN.
+   The judge is shown the context in exactly the form the generator saw
+   it, article-id tags included. Stripping them makes every citation an
+   unverifiable claim, which penalises precisely the prompt variants
+   that follow the citation instruction.
+
+   Faithfulness covers answered questions only (0.810), not all of
+   them (0.872). Refusals are vacuously faithful, so including
+   them lets a system that answers nothing report a perfect score.
+
+6. THE LLM ARMS ARE JUDGED, BY A JUDGE THAT PASSED ITS GATE.
+   llm_naive      faithfulness 0.764 over 120 answered, correctness 0.795,
+                  25 of 25 out-of-scope answered
+   llm_cited      faithfulness 0.984 over 76 answered, correctness 0.733,
+                  0 of 25 out-of-scope answered
+   These are the first answer-quality readings in the project. They
+   carry the judge's measured error rate from Section B, and Phase 6
+   still has to check that judge for bias before any difference
+   BETWEEN arms is believed.
+
+STILL OPEN — carried into Phase 6:
+
+  - Judge bias beyond accuracy: LLM judges favour longer answers and
+    show position effects. Worth measuring the correlation between
+    answer length and score before trusting cross-variant comparisons.
+  - Inter-judge agreement. One judge's opinion is one opinion; two
+    judges disagreeing on a question is a signal that question is
+    genuinely ambiguous.
+  - The contradiction case (mh-011) is read in Section F: what each
+    judged arm does with two sources that disagree. Phase 6 should
+    check whether the judge itself noticed.
+
+HANDOFF TO PHASE 6: LLM-as-judge deep dive — judge bias measurement,
+inter-judge agreement, and qualitative failure analysis on the cases the
+harness flags.

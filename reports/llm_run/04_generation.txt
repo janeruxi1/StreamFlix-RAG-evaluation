@@ -1,0 +1,376 @@
+==============================================================================
+A. SETUP
+==============================================================================
+
+  Retrieval (fixed by Phase 3) : markdown_section + BM25 @ depth 15
+  Questions                    : 95 in-scope + 25 out-of-scope = 120
+  Prompt variants              : 5  (naive, grounded, grounded_refusal, cited, strict)
+  API credential detected      : True
+
+
+==============================================================================
+B. THE EXTRACTIVE BASELINE
+==============================================================================
+
+Before asking what an LLM adds, establish what it has to beat. This
+answerer scores every sentence in the retrieved context by IDF-weighted
+overlap with the question, returns the best few, and refuses below a
+threshold. No model, no key, no network.
+
+Its refusal threshold is a free parameter, so it is tuned on the DEV
+split only. Tuning it on all 120 questions would let the baseline peek
+at the same data it is scored on — the error Phase 3 spent a section
+avoiding, and it would be worse here because it would flatter the
+baseline and make the LLM's advantage look smaller than it is.
+
+  dev :  72 questions (57 in-scope, 15 out-of-scope)
+  test:  48 questions (38 in-scope, 10 out-of-scope)
+
+  Threshold sweep on DEV:
+
+   min_score   refuse OOS   answer in-sc      F1
+  ----------------------------------------------
+        0.05        20.0%         100.0%   0.333
+        0.10        20.0%         100.0%   0.333
+        0.15        33.3%         100.0%   0.500
+        0.18        33.3%         100.0%   0.500
+        0.25        40.0%          94.7%   0.562
+        0.35        53.3%          75.4%   0.625
+        0.50        80.0%          36.8%   0.505
+
+  Selected on dev: min_score = 0.35  (F1 0.625)
+
+  The sweep shows the trade-off directly. Raising the threshold refuses
+  more out-of-scope questions and also refuses more answerable ones.
+  There is no setting that fixes both, which is the same shape the
+  prompt variants will show in Section E.
+
+  Baseline on the FULL golden set:
+
+    refusal rate, out-of-scope :  56.0%   (want high)
+    answer rate, in-scope      :  62.1%   (want high)
+    over-refusal               :  37.0%
+    refusal F1                 :  0.589
+    mean latency               :    1.1 ms
+
+  Two answers, to make its character concrete:
+
+    [sh-002] (in scope) How much does the Premium plan cost and how many people can watch at once?
+      I don't have enough information to answer that.
+      -> refusal
+
+    [oos-003] (OUT OF SCOPE) Do you offer accounts for businesses?
+      Most TVs offer code-based sign-in. [dev-002] - Accounts created through certain partner or bundle offers, which carry [trial-003]
+      -> answer
+
+  The failure mode is visible without any metric: it returns fragments
+  that share vocabulary with the question but do not answer it, and on
+  out-of-scope questions it emits confident-looking text assembled from
+  topically adjacent articles. Synthesis, coherence, and knowing when to
+  stop are exactly what the LLM is being paid for.
+
+
+==============================================================================
+C. THE PROMPT LADDER
+==============================================================================
+
+Each variant adds ONE mechanism to the one before it, so any change in
+behaviour is attributable to that mechanism rather than to a rewrite.
+
+  naive              Question + context, no instructions. The tutorial default.
+  grounded           Adds an instruction to use only the provided context.
+  grounded_refusal   Grounded, plus explicit permission and instruction to refuse.
+  cited              Grounded + refusal + inline [article-id] citations.
+  strict             Cited, plus an explicit evidence-assessment step first.
+
+  Context assembly, for one question (sh-001):
+    chunks retrieved : 15
+    distinct articles: 7
+    context tokens   : ~769
+
+  Each block is tagged with its article id. That is not decoration —
+  without the id in the context, a citation instruction asks the model to
+  invent an identifier, and it will.
+
+  Rendered prompt for the 'cited' variant (first 480 chars):
+
+  --------------------------------------------------------------------------
+  | You are a StreamFlix customer support assistant. Answer the
+  | question using ONLY the information in the context below.
+  |
+  | Cite your sources inline using the article id in square brackets, for
+  | example [bill-001]. Every factual claim must carry a citation to the
+  | context block it came from.
+  |
+  | If the context does not contain enough information to answer the
+  | question, reply exactly: "I don't have enough information to answer
+  | that." Do not guess, and do not use outside knowledge.
+  |
+  | Cont
+  --------------------------------------------------------------------------
+
+==============================================================================
+D. THE BAKE-OFF
+==============================================================================
+
+  Provider: <OpenAIProvider model='gpt-4o-mini'>
+
+  running llm_naive over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  running llm_grounded over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  running llm_grounded_refusal over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  running llm_cited over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  running llm_strict over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+
+  answerer                refuseOOS  answerIN     F1  overRef  citePrec  tokens
+  -----------------------------------------------------------------------------
+  llm_cited                  100.0%     80.0%  0.889    17.4%     1.000     786
+  llm_grounded_refusal       100.0%     74.7%  0.855    22.8%       —       773
+  llm_strict                 100.0%     73.7%  0.848    23.9%     1.000     797
+  extractive_baseline         56.0%     62.1%  0.589    37.0%     1.000     —
+  llm_naive                    0.0%    100.0%  0.000     0.0%       —       686
+  llm_grounded                 0.0%    100.0%  0.000     0.0%       —       721
+
+  Saved -> reports\metrics/04_generation_arms.json
+
+==============================================================================
+E. THE REFUSAL TRADE-OFF
+==============================================================================
+
+The two rates move against each other. A variant that refuses everything
+scores 100% on out-of-scope and is worthless; one that never refuses
+scores 100% on in-scope and hallucinates freely on the other 25
+questions. Reading either column alone gets the wrong answer.
+
+  Best by F1: llm_cited
+    refuses 100.0% of out-of-scope, answers 80.0% of in-scope
+
+  Most conservative : llm_cited
+                      refuses 100.0% of OOS, but answers only 80.0% in-scope
+  Most helpful      : llm_naive
+                      answers 100.0% in-scope, refuses only 0.0% of OOS
+
+  Those are different products. Which one ships is a business decision
+  about the relative cost of a wrong answer versus an unhelpful one — for
+  a billing question, a confident wrong answer is far more expensive than
+  "I don't know", and the deployment recommendation in Phase 7 has to say
+  so explicitly rather than defaulting to whichever tops an F1 column.
+
+  PARTIAL REFUSALS are tracked separately and counted as ANSWERS,
+  because unsupported claims were made either way. They come in two
+  shapes and both have to be caught:
+
+    refuse-then-answer   "I don't have enough information, but generally
+                          most services..."
+    answer-then-refuse   "Premium costs $19.99 [bill-001]. I don't have
+                          enough information about student discounts."
+
+  The second shape is the one that is easy to miss. An earlier version of
+  the detector inspected only the text AFTER the refusal phrase, so it
+  caught the first and scored the second as a clean refusal.
+
+  That error runs in the DANGEROUS direction. A model that answers an
+  out-of-scope question and appends a hedge would have been counted as
+  having correctly refused — the safety metric reporting the opposite of
+  what happened. It was latent here only because the extractive baseline
+  never produces that shape; LLM arms routinely do, so it would have
+  surfaced as soon as a credential was added, silently.
+
+  Evidence that a response answered rather than refused: substantive text
+  before the refusal phrase, a citation before it (a citation is a
+  grounded claim by definition), or a hedge plus substantial text after.
+
+  The residual boundary case is a refusal that ends with a pointer —
+  "...the closest article is [bill-001] but it doesn't cover this."
+  Classifying that needs negation understanding, which is beyond a regex
+  and is what Phase 6's judge is for. It is scored as an answer, which
+  under-counts refusals and therefore UNDER-claims safety — the safe
+  direction for the error to run.
+
+    llm_cited              partial-refusal rate 0.8%
+    llm_grounded_refusal   partial-refusal rate 0.8%
+    llm_strict             partial-refusal rate 0.0%
+    extractive_baseline    partial-refusal rate 0.0%
+    llm_naive              partial-refusal rate 0.0%
+    llm_grounded           partial-refusal rate 0.0%
+
+  Saved -> reports\figures/04_refusal_tradeoff.png
+
+==============================================================================
+F. CITATION INTEGRITY
+==============================================================================
+
+Citations are requested as [article-id] because that is parseable with a
+regex. Which means one of the most damaging failure modes — citing a
+source the model was never shown — is catchable for free, on every
+answer, with no judge.
+
+A fabricated citation is worse than an uncited claim. It looks like
+evidence, so it survives exactly the scrutiny that would catch a bare
+assertion.
+
+  extractive_baseline
+    answered            : 70
+    with citations      : 70 (100%)
+    fabricated citations: 0
+
+  llm_naive
+    answered            : 120
+    with citations      : 0 (0%)
+    fabricated citations: 0
+
+  llm_grounded
+    answered            : 120
+    with citations      : 0 (0%)
+    fabricated citations: 0
+
+  llm_grounded_refusal
+    answered            : 71
+    with citations      : 0 (0%)
+    fabricated citations: 0
+
+  llm_cited
+    answered            : 76
+    with citations      : 76 (100%)
+    fabricated citations: 0
+
+  llm_strict
+    answered            : 70
+    with citations      : 70 (100%)
+    fabricated citations: 0
+
+  One caveat that stops this metric being read wrongly.
+
+  The extractive baseline scores 1.000 citation precision by
+  CONSTRUCTION, not by merit: it copies the article id off the chunk it
+  lifted the sentence from, so it is structurally incapable of citing a
+  source it was not shown. A perfect score there measures the
+  architecture, not the behaviour.
+
+  Citation precision only becomes informative for GENERATIVE arms, which
+  can invent an id. Comparing the baseline's 1.000 against an LLM's score
+  as though it were the same measurement would be a category error — the
+  baseline is not doing well at a hard task, it is exempt from the task.
+
+==============================================================================
+G. BLAME ATTRIBUTION — RETRIEVAL OR GENERATION?
+==============================================================================
+
+Phase 3 left a specific warning: when retrieval fails to surface the
+right evidence, the generator answers fluently from wrong context and the
+result looks like a hallucination. Fixing the generator would be aiming
+at the wrong component.
+
+The pipeline keeps the retrieved chunks with every answer, so the two
+can be separated mechanically — before any judge is involved.
+
+  extractive_baseline
+    full evidence retrieved    :  76 questions
+    partial evidence           :  16
+    NO ground-truth evidence   :   3
+      of which answered anyway :   1  <- upstream failures that
+                                       will look like hallucination
+
+  llm_naive
+    full evidence retrieved    :  76 questions
+    partial evidence           :  16
+    NO ground-truth evidence   :   3
+      of which answered anyway :   3  <- upstream failures that
+                                       will look like hallucination
+
+  llm_grounded
+    full evidence retrieved    :  76 questions
+    partial evidence           :  16
+    NO ground-truth evidence   :   3
+      of which answered anyway :   3  <- upstream failures that
+                                       will look like hallucination
+
+  llm_grounded_refusal
+    full evidence retrieved    :  76 questions
+    partial evidence           :  16
+    NO ground-truth evidence   :   3
+      of which answered anyway :   0  <- upstream failures that
+                                       will look like hallucination
+
+  llm_cited
+    full evidence retrieved    :  76 questions
+    partial evidence           :  16
+    NO ground-truth evidence   :   3
+      of which answered anyway :   0  <- upstream failures that
+                                       will look like hallucination
+
+  llm_strict
+    full evidence retrieved    :  76 questions
+    partial evidence           :  16
+    NO ground-truth evidence   :   3
+      of which answered anyway :   0  <- upstream failures that
+                                       will look like hallucination
+
+  The Phase 3 case, mh-011: "Charged after I cancelled — what do I do?"
+    retrieval recall : 100%
+    response         : answer
+    answer           : Unless cancelled first, the subscription converts to a paid plan on day [trial-002] - Returning subscribers, i
+
+  At depth 15 the evidence IS retrieved, which Phase 3 established.
+  Whether the answer flags the two contradicting refund windows rather
+  than silently picking one is a generation question — and one that
+  needs a judge, so it goes to Phase 5.
+
+==============================================================================
+PHASE 4 VERDICT
+==============================================================================
+
+Built the generation layer and measured everything measurable without a
+judge.
+
+1. AN EXTRACTIVE BASELINE THE LLM HAS TO BEAT.
+   62.1% answer rate in-scope, 56.0% refusal on out-of-scope,
+   F1 0.589, 1 ms per question, zero cost.
+   Its threshold was tuned on the dev split only. Any LLM arm has to
+   beat this to justify its latency and price — "the LLM answers well"
+   is not a finding without it.
+
+2. THE REFUSAL TRADE-OFF IS REAL AND UNAVOIDABLE.
+   Safety and helpfulness move against each other, in the prompt ladder
+   and in the baseline's single threshold alike. Every variant is
+   reported as a PAIR of rates. An F1 column is provided for ranking and
+   is not sufficient for deciding.
+
+3. PARTIAL REFUSALS ARE COUNTED AS ANSWERS.
+   "I don't know, but generally..." makes unsupported claims while
+   reading as caution. Counting it as a refusal would hide the failure.
+
+4. FABRICATED CITATIONS ARE CAUGHT FOR FREE.
+   Inline [article-id] citations make source fabrication a regex check
+   rather than a judge call. Cheap mechanical checks first; the judge
+   budget is for what genuinely needs it.
+
+STILL OPEN — carried into Phase 5:
+
+  - Answer CORRECTNESS is unmeasured. Everything here is structural:
+    did it refuse, did it cite, was the evidence there. Whether an
+    answer is faithful to its context and actually addresses the
+    question needs a judge.
+  - The contradiction case (mh-011) retrieves both refund windows at
+    depth 15. Whether any variant flags the conflict rather than
+    silently picking one is a Phase 5 question.
+  - Ambiguous questions remain the weak category from Phase 3
+    (~0.48 retrieval recall). Whether grounding instructions help or
+    hurt there is worth isolating.
+
+HANDOFF TO PHASE 5: RAGAS-style evaluation — faithfulness, answer
+relevancy, context precision and recall — on the runs produced here.

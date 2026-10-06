@@ -1,0 +1,218 @@
+{
+  "correctness_by_category": {
+    "extractive_baseline": {
+      "ambiguous": 0.273333,
+      "multi_hop": 0.175,
+      "out_of_scope": 0.5,
+      "single_hop": 0.201667
+    },
+    "llm_cited": {
+      "ambiguous": 0.293333,
+      "multi_hop": 0.7525,
+      "out_of_scope": 0.8,
+      "single_hop": 0.808333
+    },
+    "llm_naive": {
+      "ambiguous": 0.666667,
+      "multi_hop": 0.8625,
+      "out_of_scope": 0.492,
+      "single_hop": 0.931667
+    }
+  },
+  "generation_model": "gpt-4o-mini",
+  "judge": "<LLMJudge name='llm_judge_gpt-4o'>",
+  "judge_parse_failures": {
+    "extractive_baseline": 0,
+    "llm_cited": 0,
+    "llm_naive": 0
+  },
+  "judge_validation": {
+    "faithfulness_accuracy": 1.0,
+    "n_cases": 9,
+    "overall_accuracy": 1.0,
+    "parse_failures": 0,
+    "relevancy_accuracy": 1.0,
+    "trustworthy": true
+  },
+  "mh011": {
+    "extractive_baseline": {
+      "answer": "Unless cancelled first, the subscription converts to a paid plan on day [trial-002] - Returning subscribers, including those whose account was cancelled [trial-003] **If you are charged after cancelling** [trial-004]",
+      "correctness": 0.0,
+      "faithfulness": 0.0,
+      "stance": "states_neither"
+    },
+    "llm_cited": {
+      "answer": "If you were charged after cancelling, it likely means the cancellation did not complete. Charges taken after a confirmed cancellation are eligible for a refund; please refer to the \"Refund policy\" for more details [trial-004].",
+      "correctness": 0.8,
+      "faithfulness": 1.0,
+      "stance": "states_neither"
+    },
+    "llm_naive": {
+      "answer": "If you were charged after cancelling your subscription, it is likely that the cancellation did not complete. You are eligible to request a refund for any charges taken after a confirmed cancellation. To proceed, please refer to the \"Refund policy\" for instructions on how to request your refund. Make sure to submit your request within 14 days of the charge date, as requests outside this window are not accepted.",
+      "correctness": 0.8,
+      "faithfulness": 1.0,
+      "stance": "states_one"
+    }
+  },
+  "n_questions": 120,
+  "paired_correctness": {
+    "llm_naive - llm_cited": {
+      "ci_high": 0.132521,
+      "ci_low": -0.0075,
+      "difference": 0.0625
+    }
+  },
+  "paired_correctness_by_scope": {
+    "llm_naive - llm_cited (in-scope)": {
+      "ci_high": 0.218947,
+      "ci_low": 0.102105,
+      "difference": 0.16,
+      "llm_cited": 0.715263,
+      "llm_naive": 0.875263,
+      "n": 95
+    },
+    "llm_naive - llm_cited (out-of-scope)": {
+      "ci_high": -0.116,
+      "ci_low": -0.496,
+      "difference": -0.308,
+      "llm_cited": 0.8,
+      "llm_naive": 0.492,
+      "n": 25
+    }
+  },
+  "refusals": {
+    "llm_cited": {
+      "in_scope_refused": 19,
+      "in_scope_refused_by_category": {
+        "ambiguous": {
+          "n": 15,
+          "refused": 10
+        },
+        "multi_hop": {
+          "n": 20,
+          "refused": 1
+        },
+        "single_hop": {
+          "n": 60,
+          "refused": 8
+        }
+      },
+      "in_scope_refused_with_full_evidence": 10,
+      "in_scope_refused_with_no_evidence": 3,
+      "in_scope_refused_with_partial_evidence": 6,
+      "out_of_scope_answers_judged_unsupported": 0,
+      "out_of_scope_n": 25,
+      "out_of_scope_refusal_wilson_lower_95": 0.866804,
+      "out_of_scope_refused": 25
+    },
+    "llm_naive": {
+      "in_scope_refused": 0,
+      "in_scope_refused_by_category": {
+        "ambiguous": {
+          "n": 15,
+          "refused": 0
+        },
+        "multi_hop": {
+          "n": 20,
+          "refused": 0
+        },
+        "single_hop": {
+          "n": 60,
+          "refused": 0
+        }
+      },
+      "in_scope_refused_with_full_evidence": 0,
+      "in_scope_refused_with_no_evidence": 0,
+      "in_scope_refused_with_partial_evidence": 0,
+      "out_of_scope_answers_judged_unsupported": 23,
+      "out_of_scope_n": 25,
+      "out_of_scope_refusal_wilson_lower_95": 0.0,
+      "out_of_scope_refused": 0
+    }
+  },
+  "retrieval": {
+    "depth": 15,
+    "retriever": "bm25",
+    "strategy": "markdown_section"
+  },
+  "runs": {
+    "extractive_baseline": {
+      "answerer": "extractive_baseline",
+      "context_precision": 0.211228,
+      "context_recall": 0.881579,
+      "correctness": 0.268333,
+      "failure_modes": {
+        "answered_oos": 11,
+        "correct_refusal": 14,
+        "faithful_to_wrong_context": 1,
+        "generation_failure": 26,
+        "ok": 32,
+        "over_refusal": 34,
+        "refused_no_evidence": 2
+      },
+      "faithfulness_all": 0.872222,
+      "faithfulness_answered": 0.809524,
+      "n": 120,
+      "n_answered": 70,
+      "relevancy": 0.5475
+    },
+    "llm_cited": {
+      "answerer": "llm_cited",
+      "context_precision": 0.211228,
+      "context_recall": 0.881579,
+      "correctness": 0.732917,
+      "failure_modes": {
+        "correct_refusal": 25,
+        "generation_failure": 3,
+        "ok": 73,
+        "over_refusal": 16,
+        "refused_no_evidence": 3
+      },
+      "faithfulness_all": 0.965,
+      "faithfulness_answered": 0.984211,
+      "n": 120,
+      "n_answered": 76,
+      "relevancy": 0.961667
+    },
+    "llm_naive": {
+      "answerer": "llm_naive",
+      "context_precision": 0.211228,
+      "context_recall": 0.881579,
+      "correctness": 0.795417,
+      "failure_modes": {
+        "answered_oos": 25,
+        "generation_failure": 9,
+        "ok": 83,
+        "retrieval_failure": 3
+      },
+      "faithfulness_all": 0.764426,
+      "faithfulness_answered": 0.764426,
+      "n": 120,
+      "n_answered": 120,
+      "relevancy": 0.97
+    }
+  },
+  "same_question_comparison": {
+    "llm_naive - llm_cited": {
+      "correctness": {
+        "ci_high": 0.067105,
+        "ci_low": 0.007895,
+        "difference": 0.036842,
+        "llm_cited": 0.873026,
+        "llm_naive": 0.909868
+      },
+      "faithfulness": {
+        "ci_high": 0.009984,
+        "ci_low": -0.040351,
+        "difference": -0.014583,
+        "llm_cited": 0.984211,
+        "llm_naive": 0.969627
+      },
+      "mean_answer_words": {
+        "llm_cited": 37.6,
+        "llm_naive": 65.8
+      },
+      "n_both_answered": 76
+    }
+  }
+}

@@ -59,6 +59,7 @@ from src.evaluation.judge_bias import (
 )
 from src.evaluation.judge_validation import VALIDATION_CASES, validate_judge
 from src.evaluation.rag_metrics import context_precision, evaluate_answer
+from src.evaluation.retrieval_metrics import context_tokens
 from src.generation.extractive import ExtractiveAnswerer
 from src.generation.pipeline import LLMAnswerer, RAGPipeline
 from src.generation.prompts import VARIANTS, format_context
@@ -238,8 +239,7 @@ if mode == "Ask anything":
         with left:
             st.subheader(f"Retrieved context — {len(result.hits)} chunks")
             st.caption(
-                f"~{sum(len(h.chunk.generation_text.split()) * 1.33 for h in result.hits):.0f} "
-                f"tokens handed to the generator."
+                f"~{context_tokens(result.hits)} estimated tokens handed to the generator."
             )
             for hit in result.hits[:8]:
                 with st.expander(

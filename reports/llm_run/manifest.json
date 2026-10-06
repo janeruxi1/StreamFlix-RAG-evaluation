@@ -1,0 +1,66 @@
+{
+  "completed": true,
+  "generation_model": "gpt-4o-mini",
+  "git_commit": "9f9b1c7",
+  "git_dirty": true,
+  "judge_model": "gpt-4o",
+  "judged_arms": [
+    "naive",
+    "cited"
+  ],
+  "markdown_section_chunks": 202,
+  "notebooks": {
+    "01_corpus_construction": {
+      "exit_code": 0,
+      "new_api_calls": 0,
+      "seconds": 10.1
+    },
+    "02_chunking_embedding": {
+      "exit_code": 0,
+      "new_api_calls": 0,
+      "seconds": 62.3
+    },
+    "03_retrieval_bakeoff": {
+      "exit_code": 0,
+      "new_api_calls": 0,
+      "seconds": 69.6
+    },
+    "04_generation": {
+      "exit_code": 0,
+      "new_api_calls": 355,
+      "seconds": 383.5
+    },
+    "05_evaluation": {
+      "exit_code": 0,
+      "new_api_calls": 1020,
+      "seconds": 908.9
+    },
+    "06_judge_analysis": {
+      "exit_code": 0,
+      "new_api_calls": 9,
+      "seconds": 15.2
+    },
+    "07_decision_memo": {
+      "exit_code": 0,
+      "new_api_calls": 0,
+      "seconds": 1.1
+    }
+  },
+  "packages": {
+    "anthropic": "1.0.0",
+    "matplotlib": "3.10.9",
+    "numpy": "2.4.6",
+    "openai": "1.109.1",
+    "pandas": "2.3.3",
+    "scikit-learn": "1.9.0",
+    "sentence-transformers": "6.0.0",
+    "tiktoken": "0.14.0"
+  },
+  "planned_judge_calls": 1098,
+  "platform": "Windows-11-10.0.26200-SP0",
+  "provider": "openai",
+  "python": "3.13.12",
+  "started_utc": "2026-10-04T23:42:48Z",
+  "tiktoken_available": true,
+  "total_new_api_calls": 1384
+}

@@ -1,0 +1,29 @@
+{
+  "agreement_with_lexical": {
+    "disagreements": 26,
+    "kappa": -0.464789,
+    "n": 40,
+    "raw_agreement": 0.35
+  },
+  "judge": "<LLMJudge name='llm_judge_gpt-4o'>",
+  "length_extrapolation_check": {
+    "ci_high": 0.009984,
+    "ci_low": -0.040351,
+    "consistent": false,
+    "observed": -0.014583,
+    "pair": "llm_naive - llm_cited",
+    "predicted": -0.170909,
+    "word_gap": 28.2
+  },
+  "length_probes": {
+    "mean_delta": -0.222222,
+    "n": 3,
+    "n_material": 2,
+    "per_word": -0.00606
+  },
+  "order_probes": {
+    "max_abs_delta": 0.0,
+    "n": 2
+  },
+  "self_consistency_max_spread": 0.0
+}
