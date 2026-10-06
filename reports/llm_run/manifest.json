@@ -1,7 +1,7 @@
 {
   "completed": true,
   "generation_model": "gpt-4o-mini",
-  "git_commit": "9f9b1c7",
+  "git_commit": "2127861",
   "git_dirty": true,
   "judge_model": "gpt-4o",
   "judged_arms": [
@@ -13,37 +13,37 @@
     "01_corpus_construction": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 10.1
+      "seconds": 7.1
     },
     "02_chunking_embedding": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 62.3
+      "seconds": 36.5
     },
     "03_retrieval_bakeoff": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 69.6
+      "seconds": 43.9
     },
     "04_generation": {
       "exit_code": 0,
-      "new_api_calls": 355,
-      "seconds": 383.5
+      "new_api_calls": 0,
+      "seconds": 12.2
     },
     "05_evaluation": {
       "exit_code": 0,
-      "new_api_calls": 1020,
-      "seconds": 908.9
+      "new_api_calls": 0,
+      "seconds": 16.7
     },
     "06_judge_analysis": {
       "exit_code": 0,
-      "new_api_calls": 9,
-      "seconds": 15.2
+      "new_api_calls": 0,
+      "seconds": 3.3
     },
     "07_decision_memo": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 1.1
+      "seconds": 1.0
     }
   },
   "packages": {
@@ -60,7 +60,7 @@
   "platform": "Windows-11-10.0.26200-SP0",
   "provider": "openai",
   "python": "3.13.12",
-  "started_utc": "2026-10-04T23:42:48Z",
+  "started_utc": "2026-10-06T22:30:57Z",
   "tiktoken_available": true,
-  "total_new_api_calls": 1384
+  "total_new_api_calls": 0
 }

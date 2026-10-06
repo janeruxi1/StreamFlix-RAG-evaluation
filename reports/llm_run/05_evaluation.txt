@@ -153,10 +153,10 @@ D. JUDGED ANSWER QUALITY
   all-questions figure is kept visible rather than deleted so the
   inflation is auditable rather than hidden.
 
-  (Here the two run in the opposite direction, because the lexical judge
-  scores refusals near ZERO rather than 1.0 — one of the failures
-  Section B catches. With a judge that handles refusals correctly, the
-  all-questions number would sit ABOVE the answered-only one.)
+  (Here the inflation is visible: 0.872 over all questions against
+  0.810 over answered ones. The refusals are being scored as
+  vacuously faithful, which is correct for each refusal and misleading
+  as an average.)
 
   Failure modes across all 120 questions:
 
@@ -197,6 +197,15 @@ that look identical in the output and need opposite fixes.
   Sending all of them to a prompt-engineering fix — the reflex when a
   dashboard shows "hallucination rate: X%" — would aim 0 of them at
   the wrong component entirely.
+
+  One thing this table shows that the lexical judge could not. This
+  answerer copies sentences out of the context verbatim, and under term
+  overlap that made it faithful by construction. A judge that reads
+  meaning still finds 26 of its answers unfaithful — because it
+  stitches together sentence FRAGMENTS from different articles, and a
+  fragment cut mid-sentence and attached to another source's citation
+  is no longer a claim that source makes. Copying words is not the same
+  as preserving what they said.
 
   Saved -> reports\figures/05_evaluation.png
 
@@ -275,7 +284,52 @@ runs the judge over LLM answers.
   questions, so the comparison is per question — the shared difficulty
   cancels instead of widening the interval.
 
-    llm_naive - llm_cited: +0.063 [-0.007, +0.133]  interval includes zero — not distinguishable
+    llm_naive - llm_cited: +0.062 [-0.007, +0.133]  interval includes zero — not distinguishable
+      in-scope      0.875 vs 0.715   +0.160 [+0.102, +0.219]  (n=95)
+      out-of-scope  0.492 vs 0.800   -0.308 [-0.496, -0.116]  (n=25)
+
+  THE SAME QUESTIONS, NOT THE SAME AVERAGES. The faithfulness column
+  above compares each arm on a different set of questions — the ones it
+  chose to answer. Restricted to questions BOTH arms answered:
+
+    llm_naive vs llm_cited, n=76 questions both answered
+      faithfulness  0.970 vs 0.984   difference -0.015 [-0.040, +0.010]
+      correctness   0.910 vs 0.873   difference +0.037 [+0.008, +0.067]
+      answer length 66 vs 38 words
+
+  Read the faithfulness line against the table above. Whatever gap
+  the headline column shows between a refusing arm and a non-refusing
+  one, this is how much of it survives on common ground. The rest was
+  composition: one arm was being averaged over questions the other
+  declined.
+
+  REFUSALS. Where each arm declines, and whether it had the evidence:
+
+    llm_naive
+      in-scope refused      : 0  (evidence fully retrieved for 0, partly for 0, not at all for 0)
+      by question type      : single_hop 0/60, multi_hop 0/20, ambiguous 0/15
+      out-of-scope refused  : 0 of 25
+      out-of-scope answered : 25, of which 23 contain claims the judge found unsupported
+
+    llm_cited
+      in-scope refused      : 19  (evidence fully retrieved for 10, partly for 6, not at all for 3)
+      by question type      : single_hop 8/60, multi_hop 1/20, ambiguous 10/15
+      out-of-scope refused  : 25 of 25  -> true rate at least 86.7% (95% Wilson lower bound)
+
+  Two readings that the raw counts invite and do not support.
+
+  A clean sweep on 25 questions is not a clean system. The Wilson bound
+  is what 25 questions can actually establish, and an underlying
+  failure rate of one in ten would still produce a perfect score on a
+  set this size about 7% of the time.
+
+  And "answered" is not "hallucinated". An arm with no refusal
+  instruction never emits the canonical refusal, so every out-of-scope
+  reply counts as answered — including the ones that say the context
+  does not cover the question and then suggest something. The judged
+  count beside it is the stricter statement: answers containing at
+  least one claim the context does not support.
+
 
   THE PLANTED CONTRADICTION (mh-011). Two retrieved articles state
   different refund windows: 14 days and 30 days. Phases 3 and 4 both

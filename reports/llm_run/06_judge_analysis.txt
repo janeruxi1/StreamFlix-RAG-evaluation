@@ -33,19 +33,43 @@ that asserts nothing new. A faithful judge must score them equally.
   material       : 2/3
   BIASED         : True   (penalises the longer version)
 
->>> This judge PENALISES length, by 0.222 on average.
+  What the judge said about each longer version:
 
-  That is the opposite of the bias the literature reports for LLM
-  judges, which tend to reward verbosity. The mechanism here is
-  transparent: lexical faithfulness is the fraction of ANSWER terms
-  found in the context, so padding words — "thank you for asking",
-  "which means", "advisable" — are absent from the context and drag the
-  ratio down. Longer answer, lower score, regardless of whether a single
-  additional claim was made.
+    len-01: 2 of 3 claims supported
+      The context supports the claim that the Premium plan supports 4 simultaneous streams and that this is the highest number offered, but it does not support the claim about four devices in a household watching different titles at the same time.
 
-  Two judges with OPPOSITE biases are both wrong, and neither is
-  correctable by choosing a threshold. The direction is a property of
-  the scoring mechanism, not a tuning parameter.
+    len-02: 3 of 3 claims supported
+      All claims are supported by the context, as the billing date is determined by the calendar day of first subscription and StreamFlix bills on a monthly recurring cycle.
+
+    len-03: 2 of 3 claims supported
+      The claims about refunds being available within 30 days and the need to contact support with account email and charge date are supported by the context, but the advice to act promptly is not mentioned in the context.
+
+>>> The longer version scored lower on 2 of 3 probes, by 0.222 on
+    average. Read the judge's reasons above before calling that a
+    length bias.
+
+  The probes were written on the assumption that their padding asserts
+  nothing new. That assumption was safe for a lexical judge, for which
+  filler is simply vocabulary absent from the context. A judge that
+  reads meaning does not see filler: it splits the answer into claims,
+  and where it marks one unsupported it names the sentence. If the
+  sentence it names is an inference or a piece of advice the context
+  never states — "which means up to four devices in your household...",
+  "acting promptly is advisable" — then the judge is not responding to
+  length. It is responding to an added claim, and the probe contained
+  one.
+
+  So this number is two things at once, and only one of them is about
+  the judge:
+
+    - As a LENGTH bias it is an upper bound, not an estimate. These
+      probes do not hold claims fixed for a judge that counts claims.
+    - As a description of the judge it is informative: it is strict
+      about elaboration. An answer that adds a helpful-sounding
+      inference loses faithfulness. For a support assistant that is the
+      direction to be strict in.
+
+  Section F tests the length reading directly, against real answers.
 
 
 ==============================================================================
@@ -110,10 +134,26 @@ coincidence alone. Kappa subtracts that.
 
   Max divergence between these two raters on the bias probes: 0.455
 
-  26 disagreements out of 40. Those are the interesting
-  rows: questions where two different scoring formulations reach
-  opposite verdicts, which usually means the answer sits genuinely near
-  the boundary rather than that one judge is simply wrong.
+  26 disagreements out of 40.
+
+  This is not two competent raters splitting hard cases, and reading it
+  that way would be a mistake. The raters are not peers: on the Phase 5
+  validation suite this judge scored 100% and the lexical judge
+  50%. Agreement with an instrument known to be wrong is not a
+  virtue, so low kappa here counts against the lexical judge rather
+  than against either rater equally.
+
+  The disagreements also have a shape. 15 of the 26 are on REFUSALS, which
+  the lexical judge scores as unfaithful (a refusal shares no words
+  with the context) and a semantic judge scores as vacuously faithful
+  (it asserts nothing). The rest run the other way: answers stitched
+  from copied fragments, which overlap the context almost perfectly and
+  no longer say what the context says.
+
+  What kappa between a validated and an unvalidated rater cannot do is
+  certify the validated one. That would need a second rater that also
+  passes the gate — a different model family, or human labels on a
+  sample — and this project has neither.
 
 
   Saved -> reports\figures/06_judge_bias.png
@@ -127,14 +167,24 @@ about a conclusion someone might act on. The exposed conclusion here is
 the Phase 4 prompt ladder, because its rungs differ systematically in
 answer length.
 
-  Prompt instruction length by rung (a proxy for answer length,
-  since the instructions ask for progressively more):
+  Instruction length by rung, beside the answer length it actually
+  produced (measured, from the Phase 4 record):
 
-    naive                 5 words
-    grounded             32 words
-    grounded_refusal     72 words
-    cited                82 words
-    strict               90 words
+    rung                instruction  mean answer
+    naive                   5 words     67 words
+    grounded               32 words     36 words
+    grounded_refusal       72 words     25 words
+    cited                  82 words     38 words
+    strict                 90 words     43 words
+
+  This notebook used to treat instruction length as a proxy for answer
+  length, on the reasoning that the upper rungs ask for more. Measured,
+  the longest answers come from `naive` at 67 words:
+  the rung with the SHORTEST instruction. An unconstrained model
+  elaborates; an instruction to stay inside the context and cite it
+  makes answers shorter. The proxy pointed the wrong way, so any
+  contamination argument has to use these lengths.
+
 
   Measured length effect : -0.00606 score per extra answer word
   Probe word gaps        : 32 to 41 words
@@ -144,16 +194,42 @@ answer length.
 
 >>> That is at or above the 0.15 material threshold.
 
-  So a Phase 4 ladder comparison run through THIS judge would be
-  substantially contaminated: a variant could win or lose on verbosity
-  alone. Any faithfulness comparison across the ladder needs either a
-  judge without this bias, or answers length-normalised before scoring.
+  So a Phase 4 ladder comparison run through THIS judge would, if the
+  per-word figure held on real answers, be substantially contaminated:
+  a variant could win or lose on verbosity alone. A faithfulness
+  comparison across the ladder would then need either a judge without
+  the effect, or answers length-normalised before scoring.
 
-  Stating it precisely: the bias does not invalidate Phase 4's
-  JUDGE-FREE results — refusal rates, citation integrity, and blame
-  attribution are all counts and regexes, untouched by this. It
-  invalidates faithfulness comparisons ACROSS variants, which is a
-  Phase 5 output, not a Phase 4 one.
+  Stating the exposure precisely: Phase 4's JUDGE-FREE results —
+  refusal rates, citation integrity, and blame attribution — are counts
+  and regexes, untouched by any of this. What is exposed is
+  faithfulness compared ACROSS variants, which is a Phase 5 output.
+
+  THE EXTRAPOLATION, TESTED. A per-word effect read off three probes
+  is a prediction, and Phase 5 recorded the data to check it: the same
+  questions answered by two arms whose answers differ in length.
+
+    llm_naive - llm_cited, 76 questions both answered
+      answer length          : 66 vs 38 words (+28)
+      predicted from probes  : -0.171 faithfulness
+      observed               : -0.015 [-0.040, +0.010]
+
+>>> The prediction is outside the observed interval. Real answers that
+    differ by 28 words do not show the gap a per-word length penalty
+    requires.
+
+  That supports the second reading of Section B. The judge does not
+  charge by the word. It charged the probes for specific added claims,
+  and real answers that are longer without adding unsupported claims
+  are not penalised. The contamination warning above does not apply to
+  this judge on this data.
+
+  The caveat runs the other way from the usual one. This comparison is
+  observational: the two arms differ in more than length, so it cannot
+  prove the absence of a small length effect. What it rules out is an
+  effect of the size the probes implied.
+
+  Saved -> reports\metrics/06_judge_audit.json
 
 ==============================================================================
 PHASE 6 VERDICT
@@ -163,7 +239,7 @@ Audited llm_judge_gpt-4o on three dimensions beyond accuracy.
 
 1. ACCURACY IS NOT ENOUGH.
    Phase 5 asked whether the judge gets known cases right; this phase
-   asks what else it responds to. It failed on 1 of 3
+   asks what else it responds to. It showed a material effect on 1 of 3
    dimensions: length.
 
 2. PAIRED PROBES, NOT CORRELATIONS.
@@ -172,15 +248,21 @@ Audited llm_judge_gpt-4o on three dimensions beyond accuracy.
    Each probe holds claims, context and citations fixed and varies one
    thing, so a gap is attributable rather than suggestive.
 
-3. LENGTH EFFECT: -0.222 MEAN.
-   Penalises verbosity — the opposite of the documented LLM-judge bias, and a direct consequence of scoring by term overlap.
+3. LENGTH EFFECT ON THE PROBES: -0.222 MEAN.
+   The longer versions scored lower on 2 of 3 probes. The judge's reasons name
+   specific added claims, so as a LENGTH bias this is an upper bound; as a
+   description of the judge it shows strictness about elaboration.
+   Tested on real answers 28 words apart: predicted -0.171, observed -0.015
+   [-0.040, +0.010] — a per-word penalty of that size is ruled out.
 
 4. THE FLOOR ON MEASURABLE DIFFERENCES IS 0.000.
    Gaps smaller than the judge's own run-to-run variation are not small
    effects, they are unmeasurable ones.
 
 5. AGREEMENT: kappa -0.465.
-   Chance-corrected rather than raw, because raw agreement is inflated whenever one verdict dominates.
+   Against a rater that failed the accuracy gate, so low agreement counts
+   against that rater. It does not certify this one: that needs a second
+   rater that also passes.
 
 STILL OPEN — carried into Phase 7:
 
@@ -190,9 +272,12 @@ STILL OPEN — carried into Phase 7:
   - The probe set is 5 hand-written pairs. Enough to detect a
     gross bias, not enough to estimate its size precisely. The reported
     per-word figure is an order of magnitude, not a coefficient.
-  - mh-011, still. Both refund windows retrieve at depth 15; whether
-    any variant FLAGS the conflict rather than silently choosing one
-    remains unanswered and needs the LLM arms.
+  - mh-011 is answered, from the Phase 5 record: llm_cited states_neither (correctness 0.80); llm_naive states_one (correctness 0.80).
+    No judged arm states both refund windows. The judge's correctness
+    scores are against a reference that names the conflict, so a high
+    score for an answer that omits it is the judge being lenient on
+    omission: it checks the claims an answer makes, and a missing
+    caveat is not a false claim. That is a blind spot to design for.
 
 HANDOFF TO PHASE 7: the deployment decision memo — what ships, at what
 context budget, with which known failure modes and which measurement

@@ -44,8 +44,25 @@ def test_scrub_handles_one_secret_containing_another(runner):
 
 
 def test_scrub_strips_trailing_whitespace_and_ends_in_one_newline(runner):
-    out = runner.scrub("a   \nb\t\n\n", [])
-    assert out == "a\nb\n\n"
+    """Exactly one newline at the end, however many blank lines the
+    notebook printed last. The commit hook's end-of-file fixer rewrites
+    anything else, which blocks the commit of every regenerated log."""
+    assert runner.scrub("a   \nb\t\n\n", []) == "a\nb\n"
+    assert runner.scrub("a\n\n\n   \n", []) == "a\n"
+    assert runner.scrub("a\n\nb", []) == "a\n\nb\n"      # inner blank lines kept
+
+
+def test_progress_lines_are_matched_by_shape(runner):
+    """Loop progress is echoed; indented prose that happens to contain
+    an ellipsis is not."""
+    is_progress = lambda s: bool(runner.PROGRESS_LINE.match(s))
+    assert is_progress("  running llm_cited over 120 questions ...\n")
+    assert is_progress("    40/120 ...\n")
+    assert is_progress("    judged 80/120 ...\n")
+    assert is_progress("  llm_naive: generating over 120 questions ...\n")
+    assert is_progress("  llm_naive: judging ...\n")
+    assert not is_progress('                          most services..."\n')
+    assert not is_progress("    refuse-then-answer   \"I don't have enough information, but generally\n")
 
 
 def test_secrets_are_found_by_name_and_sorted_longest_first(runner, monkeypatch):
@@ -70,11 +87,30 @@ def test_commit_id_is_short_enough_to_pass_the_secret_scan(runner):
     assert all(ch in "0123456789abcdef" for ch in cid)
 
 
+def test_environment_drift_names_packages_the_last_run_had(runner, tmp_path):
+    """Started from a different Python than the last run, the script
+    must say so by name rather than report a bare missing package."""
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        '{"packages": {"numpy": "2.0.0", "surely-not-installed-xyz": "1.2.3", '
+        '"anthropic": null}}', encoding="utf-8")
+    drift = runner.environment_drift(manifest)
+    assert drift == ["surely-not-installed-xyz"]     # numpy present, null ignored
+
+
+def test_environment_drift_is_quiet_without_a_previous_run(runner, tmp_path):
+    assert runner.environment_drift(tmp_path / "absent.json") == []
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+    assert runner.environment_drift(broken) == []
+
+
 def test_dry_run_executes_nothing(runner, monkeypatch, capsys, tmp_path):
     """--dry-run must not create the output directory, let alone spend."""
     monkeypatch.setenv("OPENAI_API_KEY", FAKE_KEY)
     monkeypatch.setenv("LLM_PROVIDER", "ollama")     # keyless, needs only `requests`
     monkeypatch.setattr(runner, "OUT_DIR", tmp_path / "llm_run")
+    # tmp_path holds no manifest, so no previous run to drift from.
 
     def _fail(*a, **k):
         raise AssertionError("dry run started a notebook")
