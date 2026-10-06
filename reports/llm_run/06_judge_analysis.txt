@@ -1,0 +1,199 @@
+==============================================================================
+A. SETUP
+==============================================================================
+
+  Judge under audit : <LLMJudge name='llm_judge_gpt-4o'>
+  Phase 5 accuracy  : 100%  (trustworthy = True)
+  Probes            : 3 length, 2 context-order
+  Material delta    : 0.15  (score gap treated as real)
+
+  Note what Phase 5 established and this phase does NOT re-litigate:
+  the judge passes the accuracy gate. Bias is a separate question. An
+  accurate judge can still be biased, and a biased judge can still be
+  accurate on unambiguous cases — which is precisely why unambiguous
+  cases cannot be the whole audit.
+
+
+==============================================================================
+B. LENGTH BIAS
+==============================================================================
+
+Each probe is two answers making the SAME claims from the SAME context
+with the SAME citations. One is terse, one is padded with restatement
+that asserts nothing new. A faithful judge must score them equally.
+
+  probe        terse   verbose    delta   words (terse -> verbose)
+  --------------------------------------------------------------------
+  len-01       1.000     0.667   -0.333     6 -> 47   MATERIAL
+  len-02       1.000     1.000   +0.000     9 -> 46
+  len-03       1.000     0.667   -0.333     7 -> 39   MATERIAL
+
+  mean delta     : -0.222
+  max |delta|    : 0.333
+  material       : 2/3
+  BIASED         : True   (penalises the longer version)
+
+>>> This judge PENALISES length, by 0.222 on average.
+
+  That is the opposite of the bias the literature reports for LLM
+  judges, which tend to reward verbosity. The mechanism here is
+  transparent: lexical faithfulness is the fraction of ANSWER terms
+  found in the context, so padding words — "thank you for asking",
+  "which means", "advisable" — are absent from the context and drag the
+  ratio down. Longer answer, lower score, regardless of whether a single
+  additional claim was made.
+
+  Two judges with OPPOSITE biases are both wrong, and neither is
+  correctable by choosing a threshold. The direction is a property of
+  the scoring mechanism, not a tuning parameter.
+
+
+==============================================================================
+C. CONTEXT-ORDER SENSITIVITY
+==============================================================================
+
+The same answer, scored against the same context blocks in a different
+order. The evidence is byte-identical; only position moves.
+
+  ord-01     original 1.000   shuffled 1.000   delta +0.000
+  ord-02     original 1.000   shuffled 1.000   delta +0.000
+
+  mean delta : +0.000     BIASED: False
+
+  No material sensitivity. Retrieval ordering does not leak into the
+  faithfulness score, so cross-configuration comparisons are not partly
+  comparisons of rank order.
+
+
+==============================================================================
+D. SELF-CONSISTENCY — THE FLOOR ON MEASURABLE DIFFERENCES
+==============================================================================
+
+The identical input, scored several times at temperature 0. This should
+be exactly reproducible; hosted models often are not.
+
+The size of the wobble is not a curiosity — it is a floor. A gap between
+two configurations smaller than the judge's own run-to-run variation is
+not a small effect, it is an unmeasurable one.
+
+  spread across repeats: max 0.0000, 0/5 material
+
+  Perfectly deterministic.
+
+  Floor on measurable differences: 0.000. Any observed gap is real,
+  though it may still be small enough not to matter.
+
+
+==============================================================================
+E. INTER-JUDGE AGREEMENT
+==============================================================================
+
+One judge's opinion is one opinion. Two judges disagreeing on a question
+is a signal the question is genuinely ambiguous — which is information
+about the QUESTION, not just about the judges.
+
+Agreement is reported as Cohen's kappa rather than raw agreement,
+because raw agreement is misleading when one verdict dominates: two
+judges that both call 90% of answers faithful agree 82% of the time by
+coincidence alone. Kappa subtracts that.
+
+  LLM judge vs lexical judge, n=40
+
+    raw agreement : 35.0%
+    Cohen's kappa : -0.465   (worse than chance)
+    disagreements : 26
+      sh-002: LLM judge 1.00 vs lexical judge 0.00
+      sh-003: LLM judge 0.67 vs lexical judge 1.00
+      sh-005: LLM judge 0.67 vs lexical judge 1.00
+      sh-007: LLM judge 1.00 vs lexical judge 0.00
+      sh-010: LLM judge 1.00 vs lexical judge 0.00
+
+  Max divergence between these two raters on the bias probes: 0.455
+
+  26 disagreements out of 40. Those are the interesting
+  rows: questions where two different scoring formulations reach
+  opposite verdicts, which usually means the answer sits genuinely near
+  the boundary rather than that one judge is simply wrong.
+
+
+  Saved -> reports\figures/06_judge_bias.png
+
+==============================================================================
+F. DOES THE BIAS INVALIDATE PHASE 4?
+==============================================================================
+
+A bias measurement is only useful if it is converted into a statement
+about a conclusion someone might act on. The exposed conclusion here is
+the Phase 4 prompt ladder, because its rungs differ systematically in
+answer length.
+
+  Prompt instruction length by rung (a proxy for answer length,
+  since the instructions ask for progressively more):
+
+    naive                 5 words
+    grounded             32 words
+    grounded_refusal     72 words
+    cited                82 words
+    strict               90 words
+
+  Measured length effect : -0.00606 score per extra answer word
+  Probe word gaps        : 32 to 41 words
+
+  If two prompt variants differ by ~30 words of answer, length bias
+  alone moves faithfulness by ~0.182.
+
+>>> That is at or above the 0.15 material threshold.
+
+  So a Phase 4 ladder comparison run through THIS judge would be
+  substantially contaminated: a variant could win or lose on verbosity
+  alone. Any faithfulness comparison across the ladder needs either a
+  judge without this bias, or answers length-normalised before scoring.
+
+  Stating it precisely: the bias does not invalidate Phase 4's
+  JUDGE-FREE results — refusal rates, citation integrity, and blame
+  attribution are all counts and regexes, untouched by this. It
+  invalidates faithfulness comparisons ACROSS variants, which is a
+  Phase 5 output, not a Phase 4 one.
+
+==============================================================================
+PHASE 6 VERDICT
+==============================================================================
+
+Audited llm_judge_gpt-4o on three dimensions beyond accuracy.
+
+1. ACCURACY IS NOT ENOUGH.
+   Phase 5 asked whether the judge gets known cases right; this phase
+   asks what else it responds to. It failed on 1 of 3
+   dimensions: length.
+
+2. PAIRED PROBES, NOT CORRELATIONS.
+   Correlating score against length across the golden set would
+   confound bias with quality — longer answers may simply be better.
+   Each probe holds claims, context and citations fixed and varies one
+   thing, so a gap is attributable rather than suggestive.
+
+3. LENGTH EFFECT: -0.222 MEAN.
+   Penalises verbosity — the opposite of the documented LLM-judge bias, and a direct consequence of scoring by term overlap.
+
+4. THE FLOOR ON MEASURABLE DIFFERENCES IS 0.000.
+   Gaps smaller than the judge's own run-to-run variation are not small
+   effects, they are unmeasurable ones.
+
+5. AGREEMENT: kappa -0.465.
+   Chance-corrected rather than raw, because raw agreement is inflated whenever one verdict dominates.
+
+STILL OPEN — carried into Phase 7:
+
+  - Self-preference bias needs two generation models, not two judges.
+    A judge scoring its own output family higher is a separate effect
+    from length, and the current design cannot isolate it.
+  - The probe set is 5 hand-written pairs. Enough to detect a
+    gross bias, not enough to estimate its size precisely. The reported
+    per-word figure is an order of magnitude, not a coefficient.
+  - mh-011, still. Both refund windows retrieve at depth 15; whether
+    any variant FLAGS the conflict rather than silently choosing one
+    remains unanswered and needs the LLM arms.
+
+HANDOFF TO PHASE 7: the deployment decision memo — what ships, at what
+context budget, with which known failure modes and which measurement
+caveats attached to each claim.

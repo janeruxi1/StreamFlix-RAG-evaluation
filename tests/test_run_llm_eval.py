@@ -60,6 +60,16 @@ def test_secrets_are_found_by_name_and_sorted_longest_first(runner, monkeypatch)
     assert found == sorted(found, key=len, reverse=True)
 
 
+def test_commit_id_is_short_enough_to_pass_the_secret_scan(runner):
+    """A full commit hash in the manifest is flagged as a high-entropy
+    hex string, and the scan then blocks the evidence from being
+    committed. Seven hex characters cannot exceed the scanner's 3.0
+    bits-per-character limit: log2(7) is 2.81."""
+    cid = runner.commit_id()
+    assert len(cid) <= 7
+    assert all(ch in "0123456789abcdef" for ch in cid)
+
+
 def test_dry_run_executes_nothing(runner, monkeypatch, capsys, tmp_path):
     """--dry-run must not create the output directory, let alone spend."""
     monkeypatch.setenv("OPENAI_API_KEY", FAKE_KEY)

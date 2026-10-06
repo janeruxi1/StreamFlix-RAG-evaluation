@@ -1,0 +1,238 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+==============================================================================
+A. CHUNKING STRATEGIES
+==============================================================================
+
+Five arms, each a different point on the same trade-off:
+
+  larger chunks  -> more context per hit, but the embedding averages
+                    over more topics and matches queries less sharply
+  smaller chunks -> sharper matching, but an answer spanning two chunks
+                    needs both retrieved, and each carries less context
+
+  whole_article         45 chunks    1.0/article  tokens:  144/ 175/ 215 (min/med/max)
+  markdown_section     202 chunks    4.5/article  tokens:   14/  41/ 101 (min/med/max)
+  fixed_token_128       90 chunks    2.0/article  tokens:   50/ 127/ 132 (min/med/max)
+  fixed_token_256       45 chunks    1.0/article  tokens:  144/ 175/ 215 (min/med/max)
+  sentence_window      994 chunks   22.1/article  tokens:    3/  11/  28 (min/med/max)
+
+  whole_article     no split — maximum context, minimum precision
+  markdown_section  split on the author's own '**Heading**' structure
+  fixed_token_128   generic 128-token windows, 32-token overlap
+  fixed_token_256   generic 256-token windows, 64-token overlap
+  sentence_window   one sentence embedded, neighbours attached for context
+
+
+==============================================================================
+B. CHUNK-SIZE ANALYSIS
+==============================================================================
+
+        strategy  chunks  per_article  min_tok  med_tok  max_tok  total_tok
+   whole_article      45          1.0      144      175      215       7831
+markdown_section     202          4.5       14       41      101       8542
+ fixed_token_128      90          2.0       50      127      132       9434
+ fixed_token_256      45          1.0      144      175      215       7831
+ sentence_window     994         22.1        3       11       28      12097
+
+>>> FINDING — one arm collapsed into another.
+
+fixed_token_256 produced exactly 45 chunks: one per article, the
+same words as whole_article with only the whitespace changed. The reason
+is arithmetic — the longest article is ~215 tokens, so a 256-token
+window never has anything to split. The chunker ran, did nothing, and
+would have been reported in Phase 3 as a distinct configuration.
+
+That is the kind of silent no-op that produces a bake-off table with two
+rows of suspiciously identical numbers and an author who cannot explain
+why. Caught here instead: fixed_token_256 is dropped from the Phase 3
+bake-off as redundant, and the reason is recorded rather than left as a
+coincidence for a reviewer to notice.
+
+General lesson worth stating: chunk size only means something relative
+to document length. On a corpus of 10-page PDFs these arms would differ
+enormously.
+
+Strategies carried into Phase 3: whole_article, markdown_section, fixed_token_128, sentence_window
+
+sentence_window produces 994 chunks, 245 of them under 8 tokens
+(median 11 tokens). Fragments that short — table rows, single
+bullets — carry little standalone meaning and will embed to noise.
+
+This is why the strategy attaches `context_text`: the embedding sees one
+sentence for sharp matching, the generator receives the surrounding
+window. Phase 3 measures whether decoupling those two jobs pays for the
+22x increase in index size.
+
+Saved -> reports\figures/02_chunking_profiles.png
+
+==============================================================================
+C. EMBEDDING BACKEND
+==============================================================================
+
+  sentence-transformers available: True
+
+  Using BGE-small-en-v1.5 — 384 dimensions, ~130MB, CPU-only, free.
+  Competitive with far larger models on retrieval benchmarks.
+
+
+==============================================================================
+D. BUILD THE INDEX
+==============================================================================
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights:  88%|████████▊ | 175/199 [00:00<00:00, 1734.06it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1761.06it/s]
+C:\Users\ruthr\OneDrive\Documents\Claude\Projects\Github DS Portfolio Projects\03-rag-support-intelligence\src\retrieval\embedding.py:101: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
+  return int(self._model.get_sentence_embedding_dimension())
+
+  Baseline strategy : markdown_section
+  Backend           : <SentenceTransformerEmbedder dim=384>
+  Indexed           : 202 chunks, 384 dimensions
+  Index memory      : ~303 KB
+
+markdown_section is the baseline because it splits on boundaries the
+article author already chose. Phase 3 tests whether that intuition
+survives measurement.
+
+  Encoded 95 in-scope questions (out-of-scope excluded — retrieval metrics need ground truth)
+
+==============================================================================
+E. RETRIEVAL BASELINE vs THE BM25 FLOOR
+==============================================================================
+
+Dense retrieval (sentence_transformer, markdown_section, top-5 articles) vs BM25:
+
+  category          n   BM25 r@5   dense r@5    delta
+  -------------- ---- ---------- ----------- --------
+  single_hop       60     93.3%      93.3%    +0.0%
+  multi_hop        20     67.9%      77.1%    +9.2%
+  ambiguous        15     48.9%      58.9%   +10.0%
+  -------------- ---- ---------- ----------- --------
+  ALL in-scope     95     81.0%      84.5%    +3.5%
+
+Read per category. The aggregate is dominated by the 60 single-hop
+questions and hides everything interesting.
+
+  dense wins on  : multi_hop, ambiguous
+  dense loses on : (none)
+
+
+The dense baseline edges out BM25 overall (84.5% vs 81.0%), but the
+margin is small and the per-category split matters more than the total.
+An untuned single configuration beating a strong lexical baseline by a
+few points is not yet grounds for shipping it — Phase 3 checks whether
+the advantage survives a proper sweep, and whether a hybrid beats both.
+
+
+Either way, the honest framing for Phase 3: BM25 is a first-class arm,
+not a formality. A hybrid that unions lexical and dense candidates is
+the configuration most likely to win, precisely because the two methods
+fail on different questions.
+
+
+==============================================================================
+F. QUALITATIVE INSPECTION
+==============================================================================
+
+--- The contradiction probe -----------------------------------
+
+  [mh-011] Charged after I cancelled — what do I do?
+  A good system surfaces BOTH refund windows and flags the conflict.
+  ground truth : ['bill-002', 'bill-003']
+      0.839  trial-004#sec3       Canceling during your trial
+    ✓ 0.797  bill-003#sec3        Canceling your subscription
+      0.784  trial-004#sec0       Canceling during your trial
+    ✓ 0.769  bill-002#sec2        Refund policy
+      0.744  trial-002#sec2       What happens when your trial ends
+  recall@5 = 100%
+
+  BM25 on the same question : ['trial-002', 'trial-004', 'bill-003', 'trial-003', 'acct-001']
+  BM25 found                : ['bill-003']
+
+
+  Both refund articles surfaced, so the generator at least HAS the
+  material to detect the conflict. Whether it actually flags the
+  contradiction rather than silently picking one window is a generation
+  question — Phase 5.
+
+
+--- The near-duplicate cluster --------------------------------
+
+  [sh-046] What Roku software version do I need?
+  Roku-specific question. Does it return Roku, or a sibling?
+  ground truth : ['dev-003']
+    ✓ 0.750  dev-003#sec2         Setting up StreamFlix on Roku
+      0.727  dev-001#sec0         Supported devices
+    ✓ 0.707  dev-003#sec0         Setting up StreamFlix on Roku
+    ✓ 0.705  dev-003#sec1         Setting up StreamFlix on Roku
+    ✓ 0.691  dev-003#sec3         Setting up StreamFlix on Roku
+  recall@5 = 100%
+
+--- The discovered near-duplicate -----------------------------
+
+  [am-009] How do I cancel?
+  Ambiguous 'how do I cancel' — paid vs trial paths.
+  ground truth : ['bill-003', 'trial-004']
+    ✓ 0.790  bill-003#sec1        Canceling your subscription
+    ✓ 0.759  trial-004#sec1       Canceling during your trial
+    ✓ 0.731  trial-004#sec0       Canceling during your trial
+    ✓ 0.721  bill-003#sec3        Canceling your subscription
+    ✓ 0.720  bill-003#sec0        Canceling your subscription
+  recall@5 = 100%
+
+--- A multi-source question -----------------------------------
+
+  [mh-015] What's the total cost difference between Basic and Premium, and what do I get for it?
+  Needs four articles. Hardest retrieval case in the set.
+  ground truth : ['bill-001', 'strm-001', 'strm-006', 'strm-007']
+      0.766  bill-009#sec2        About the Basic Plus plan
+      0.725  bill-009#sec1        About the Basic Plus plan
+    ✓ 0.721  bill-001#sec2        How StreamFlix billing works
+      0.710  bill-007#sec0        Changing your plan
+      0.694  bill-010#sec2        Taxes and regional pricing
+  recall@5 = 25%
+
+==============================================================================
+PHASE 2 VERDICT
+==============================================================================
+
+Built:
+
+  Chunking      5 strategies implemented, 1 dropped as degenerate
+                (fixed_token_256 collapsed into whole_article)
+  Embedding     sentence_transformer, 384 dimensions, disk-cached
+  Vector store  exact cosine over 202 chunks, ~303 KB
+  Baseline      markdown_section @ top-5
+
+Measured against the Phase 1 floor:
+
+  single_hop    BM25 93.3%  ->  dense 93.3%   (+0.0%)
+  multi_hop     BM25 67.9%  ->  dense 77.1%   (+9.2%)
+  ambiguous     BM25 48.9%  ->  dense 58.9%   (+10.0%)
+
+Carried into Phase 3:
+
+  1. 4 viable chunking strategies, with the degenerate arm
+     already removed and the reason documented.
+  2. A per-category reporting discipline — the aggregate is dominated
+     by the 60 single-hop questions and hides everything interesting.
+  3. Two dense backends plus BM25, giving the bake-off a genuine
+     progression: lexical -> classic dense -> modern dense.
+  4. A concrete open failure (mh-011): the refund-contradiction question
+     defeats BOTH retrievers, because its vocabulary points at the
+     free-trial articles rather than the refund policy. A shared failure
+     across lexical and dense rules out "wrong retriever" as the
+     explanation and points at query rewriting or hybrid pools instead.
+     It will also present as a GENERATION failure downstream, so Phase 6
+     has to attribute it correctly.
+
+Not yet done — deliberately deferred:
+
+  - No hybrid retrieval. Phase 3 builds it, once there is a measured
+    baseline to justify the added complexity.
+  - No reranking. Same reasoning.
+  - Single top-k. Phase 3 sweeps it; recall@5 vs recall@10 changes the
+    precision/context-budget trade-off the generator inherits.
+
+Handoff to Phase 3: sweep strategy x backend x top-k against the golden
+set, report per category, and establish which configuration ships.

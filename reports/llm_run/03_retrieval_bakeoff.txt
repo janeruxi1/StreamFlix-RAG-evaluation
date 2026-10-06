@@ -1,0 +1,415 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+==============================================================================
+A. SETUP
+==============================================================================
+
+  Corpus            : 45 articles
+  Scored questions  : 95 in-scope
+                      (25 out-of-scope excluded — they have no
+                       retrievable ground truth and are evaluated on
+                       REFUSAL in Phase 5; averaging them in here would
+                       drag every score toward zero for a reason that has
+                       nothing to do with retrieval quality)
+  Strategies        : 4  (whole_article, markdown_section, fixed_token_128, sentence_window)
+  Depths            : [3, 5, 10, 15]
+  Transformer arm   : available
+
+
+==============================================================================
+B. THE SWEEP
+==============================================================================
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights:  89%|████████▉ | 178/199 [00:00<00:00, 1776.75it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1806.77it/s]
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 3258.24it/s]
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 3145.59it/s]
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2977.52it/s]
+
+  64 configurations evaluated on 95 questions each
+
+  Top 10 by raw recall:
+
+  strategy         arm                  d  recall    mrr   1hop  multi  ambig  tokens
+  -----------------------------------------------------------------------------------
+  whole_article    dense_transformer   15   0.967  0.815  1.000  0.975  0.822    2536
+  fixed_token_128  hybrid              15   0.936  0.835  1.000  0.900  0.728    1526
+  fixed_token_128  dense_transformer   15   0.930  0.843  0.983  0.912  0.739    1505
+  whole_article    dense_lsa           15   0.918  0.741  0.967  0.925  0.717    2543
+  whole_article    hybrid              15   0.918  0.811  0.983  0.950  0.611    2543
+  whole_article    dense_transformer   10   0.916  0.812  0.967  0.938  0.683    1687
+  markdown_section dense_transformer   15   0.907  0.840  0.933  0.950  0.744     570
+  whole_article    bm25                15   0.901  0.759  0.983  0.817  0.683    2548
+  whole_article    hybrid              10   0.900  0.811  0.983  0.867  0.611    1690
+  fixed_token_128  hybrid              10   0.896  0.834  1.000  0.808  0.594    1019
+
+==============================================================================
+C. THE MONOTONICITY TRAP
+==============================================================================
+
+Look at the depth column above: 7 of the top 10 configurations use
+depth=15, the largest swept.
+
+That is not a finding. recall@k is monotonically non-decreasing in k —
+retrieving more documents can only ever find more ground truth, never
+less. A bake-off that sweeps depth and ranks by recall is guaranteed to
+crown the deepest configuration, and would do so even if the retriever
+were returning documents at random.
+
+  Verified: 48/48 depth increases produced a non-decreasing
+  recall, exactly as the metric guarantees.
+
+The obvious hope is that a rank-sensitive metric escapes this. MRR and
+nDCG discount by position, so burying a correct document deep in the
+list ought to cost something. Checking rather than assuming:
+
+    mrr    decreased with depth in 0/48 cases
+    ndcg   decreased with depth in 0/48 cases
+
+  They do not escape it. All three are monotone in depth here, and for a
+  structural reason: retrieving deeper can only ADD documents further
+  down the list. It never moves the first correct document to a worse
+  rank, so MRR cannot fall; and each extra item contributes a
+  non-negative discounted gain, so nDCG cannot fall either.
+
+  This is worth stating plainly because it closes off the tempting move.
+  There is no quality-only metric that selects retrieval depth. Any
+  ranking of a depth sweep by any of these metrics returns the deepest
+  configuration by construction.
+
+  Depth is therefore not a quality decision at all — it is a COST
+  decision, and it cannot be made without measuring cost. That is not a
+  refinement of the analysis; without Section D there is no analysis.
+
+  These metrics remain the right ones for comparing configurations AT A
+  FIXED depth, which is how Section E uses them.
+
+
+==============================================================================
+D. CONTEXT BUDGET — WHAT RECALL ACTUALLY COSTS
+==============================================================================
+
+Every retrieved chunk is tokens the generator pays for: money per query,
+and attention diluted across more distractors. So the real question is
+not "which configuration has the highest recall" but "which reaches a
+given recall for the fewest tokens".
+
+  Pareto frontier — 13 of 64 configurations are not dominated.
+  (A dominated config costs more AND retrieves less. Choosing one
+   means knowingly paying more for less.)
+
+  config                                          recall  tokens  rec/1k
+  ----------------------------------------------------------------------
+  sentence_window|hybrid|d3                        0.716     105    6.82
+  sentence_window|dense_transformer|d3             0.732     108    6.76
+  markdown_section|dense_transformer|d3            0.768     115    6.67
+  markdown_section|hybrid|d5                       0.796     191    4.18
+  markdown_section|dense_transformer|d5            0.818     193    4.24
+  markdown_section|hybrid|d10                      0.853     379    2.25
+  markdown_section|dense_transformer|d10           0.870     383    2.27
+  markdown_section|dense_lsa|d15                   0.878     565    1.55
+  markdown_section|hybrid|d15                      0.889     570    1.56
+  markdown_section|dense_transformer|d15           0.907     570    1.59
+  fixed_token_128|dense_transformer|d15            0.930    1505    0.62
+  fixed_token_128|hybrid|d15                       0.936    1526    0.61
+  whole_article|dense_transformer|d15              0.967    2536    0.38
+
+  Highest recall overall : 0.967  whole_article|dense_transformer|d15
+                           costing 2536 tokens/query
+
+  A caveat that decides how this section can be read. "Not statistically
+  significant" is NOT evidence that two configurations are the same. On
+  95 questions the test is underpowered, so failing to reject is
+  mostly a statement about sample size. Picking the cheaper option
+  because p > 0.05 is affirming the null.
+
+  Making a positive claim requires a declared margin of practical
+  equivalence — here 0.05 recall, about five questions, fixed before
+  looking at the table. Then each comparison resolves three ways:
+
+    EQUIVALENT    CI lies entirely inside +/-0.05  -> safe to prefer on cost
+    DIFFERENT     CI excludes zero
+    INCONCLUSIVE  neither -> the data cannot tell
+
+  Against the leader, 63 challengers resolve as:
+    equivalent   : 0
+    different    : 62
+    inconclusive : 1
+
+>>> HEADLINE — and it is a NEGATIVE one, which is the honest result here.
+
+  No configuration that is meaningfully cheaper than the leader is
+  demonstrably equivalent to it. The cheapest serious contender:
+
+    fixed_token_128|hybrid|d15
+    recall 0.936 at 1526 tokens/query  (1.7x cheaper)
+    +0.031 [-0.003, +0.064] vs +/-0.050 -> INCONCLUSIVE
+
+  Its interval reaches beyond the 0.05 margin, so it lands as
+  INCONCLUSIVE. 95 questions cannot resolve whether a 1.7x cost
+  saving costs meaningful recall.
+
+  This overturns the reading an uncorrected table invites. Ranked by
+  raw p-values, that configuration was "not significantly different"
+  (p=0.078) and the tempting conclusion was "equivalent — ship the
+  cheap one, 1.7x saving". That conclusion was affirming the null. Once
+  a margin is declared, the same data says only that the question is
+  open.
+
+  What can still be said, and it is not nothing:
+
+    - The 1.7x cost saving is certain; the recall cost is uncertain
+      and bounded above by 0.064 recall at 95% confidence.
+    - That is a genuine engineering decision with a quantified worst
+      case, rather than a false claim of equivalence.
+    - Resolving it needs a larger golden set, not more analysis. The
+      honest handoff is the bound, not a verdict.
+
+  On what chunking is for, the picture does survive. Phase 2 saw
+  whole_article performing well and chunking looking like complexity
+  without payoff, because recall was the only axis on the page. The
+  frontier above shows chunking buying large, certain cost reductions
+  for small, uncertain recall costs — which is a real benefit even
+  without an equivalence claim.
+
+  The saving compounds in Phase 5: fewer distractor tokens is precisely
+  the condition under which faithfulness improves. Retrieval cost and
+  generation quality are not independent axes.
+
+  Best achievable recall under a fixed budget:
+
+     budget   recall  config
+  --------------------------------------------------------------
+      150 tk    0.768  markdown_section|dense_transformer|d3
+      300 tk    0.818  markdown_section|dense_transformer|d5
+      600 tk    0.907  markdown_section|dense_transformer|d15
+     1200 tk    0.907  markdown_section|dense_transformer|d15
+     2500 tk    0.936  fixed_token_128|hybrid|d15
+
+  Saved -> reports\figures/03_retrieval_bakeoff.png
+
+==============================================================================
+E. WHICH DIFFERENCES ARE REAL
+==============================================================================
+
+95 questions. A 3-point recall gap is three questions changing answer.
+Before preferring one configuration over another, the difference has to
+survive being asked whether it is noise.
+
+Comparisons are PAIRED: every configuration is scored on the same
+questions, so differencing per question removes question difficulty as a
+nuisance factor. Marginal confidence intervals on each arm would be
+dominated by that shared difficulty and would badly understate power.
+
+  Reference (best at depth=10): whole_article|dense_transformer|d10
+
+  p-values are Holm-Bonferroni corrected across the 15 comparisons in
+  this family. Holm rather than plain Bonferroni because it controls the
+  same family-wise error rate while being uniformly more powerful.
+
+  challenger                                     delta              95% CI      p  Holm
+  ---------------------------------------------------------------------------------------
+  whole_article|hybrid|d10                      -0.016  [-0.070, +0.039]  0.525
+  fixed_token_128|hybrid|d10                    -0.020  [-0.068, +0.031]  0.393
+  fixed_token_128|dense_transformer|d10         -0.030  [-0.064, +0.001]  0.057
+  whole_article|bm25|d10                        -0.034  [-0.097, +0.029]  0.285
+  whole_article|dense_lsa|d10                   -0.043  [-0.107, +0.022]  0.186
+  markdown_section|dense_transformer|d10        -0.046  [-0.088, -0.011]  0.010  (raw)
+  fixed_token_128|bm25|d10                      -0.053  [-0.117, +0.013]  0.120
+  markdown_section|hybrid|d10                   -0.063  [-0.113, -0.020]  0.006  (raw)
+  markdown_section|bm25|d10                     -0.073  [-0.141, -0.005]  0.031  (raw)
+  fixed_token_128|dense_lsa|d10                 -0.078  [-0.148, -0.006]  0.032  (raw)
+  markdown_section|dense_lsa|d10                -0.101  [-0.164, -0.036]  0.002  *
+  sentence_window|hybrid|d10                    -0.104  [-0.165, -0.051]  0.001  *
+  sentence_window|dense_transformer|d10         -0.115  [-0.167, -0.069]  0.000  *
+  sentence_window|bm25|d10                      -0.123  [-0.195, -0.052]  0.000  *
+  sentence_window|dense_lsa|d10                 -0.204  [-0.281, -0.132]  0.000  *
+
+  *     = survives Holm correction
+  (raw) = would have been called significant WITHOUT correction
+
+  9 challengers look significant uncorrected; 5 survive Holm.
+  4 of the original stars were multiplicity artifacts — exactly the
+  false positives a 12-way comparison at alpha=0.05 predicts.
+
+  One further caveat on this table. The reference was chosen as the
+  BEST configuration at this depth, so it sits at the top of a noisy
+  ranking and every comparison is made against a value that was
+  selected for being high. That inflates the apparent gaps somewhat;
+  the direction of the bias is known and it works against the
+  challengers, so surviving comparisons are conservative rather than
+  optimistic.
+
+  The 10 indistinguishable configurations form a LEADING GROUP:
+
+      whole_article|hybrid|d10
+      fixed_token_128|hybrid|d10
+      fixed_token_128|dense_transformer|d10
+      whole_article|bm25|d10
+      whole_article|dense_lsa|d10
+      fixed_token_128|bm25|d10
+
+  The bake-off does not identify a single best retriever. It identifies
+  a group that 95 questions cannot tell apart, plus a clear tail that
+  they can. Inside the group, preferring one on a decimal place of
+  recall is reading noise; the choice should be made on cost and
+  simplicity, which is what Section D does.
+
+  The tail is informative in its own right. sentence_window is
+  significantly worse across every arm — the most elaborate strategy,
+  producing the most chunks, is the one clearly beaten. Fragmenting
+  articles into single sentences buys sharper matching that does not
+  survive aggregation back to article level.
+
+  The Phase 2 question, answered properly:
+
+    bm25 vs dense : +0.009 [-0.023, +0.042] p=0.655  → not distinguishable
+      (8 of 95 questions differ at all)
+    hybrid vs bm25: +0.018 [-0.007, +0.047] p=0.185  → not distinguishable
+      (9 of 95 questions differ at all)
+    hybrid vs dense: +0.027 [-0.009, +0.067] p=0.169  → not distinguishable
+      (13 of 95 questions differ at all)
+
+==============================================================================
+F. HONEST WINNER SELECTION
+==============================================================================
+
+64 configurations were scored on the same 95 questions. The maximum of
+64 noisy estimates is biased upward — part of the winner's margin is
+skill and part is luck, and reporting its full score as an expected
+production number overstates the system.
+
+So: select on a dev split, report on held-out test, and measure the gap.
+The split is stratified by category, because a uniform split can easily
+leave 2 of 15 ambiguous questions in test and make that column
+meaningless.
+
+  dev  :  57 questions
+  test :  38 questions
+
+  Dev-set winner        : whole_article|dense_transformer|d15
+  Its dev recall        : 0.968
+  Its HELD-OUT recall   : 0.965
+  Selection optimism    : +0.003
+
+  Best possible on test : 0.965
+  Regret of our pick    : 0.000
+
+  The gap is small (+0.003), which suggests the top configurations
+  are genuinely close rather than the leader being a lucky draw —
+  consistent with Section E, where most arms were not separable.
+
+  Regret of 0.000 is the cost of having to choose without seeing
+  test. It is the honest measure of how much the selection procedure —
+  not the retriever — cost us.
+
+
+==============================================================================
+G. mh-011 REVISITED — CORRECTING PHASE 2
+==============================================================================
+
+  Question      : 'Charged after I cancelled — what do I do?'
+  Ground truth  : ['bill-002', 'bill-003']  (the planted refund contradiction)
+
+  Phase 2 found this question returned 0% recall under dense retrieval
+  and 50% under BM25, and concluded — because the failure was shared
+  across both — that it was "a property of the QUESTION" and that
+  "changing retriever will not fix it."
+
+  That conclusion was too strong. Result:
+
+    configurations retrieving BOTH articles : 29 of 64
+    candidate pool contained both           : 4 of 4 strategies
+
+    examples:
+      whole_article|bm25|d10
+      whole_article|bm25|d15
+      whole_article|dense_lsa|d15
+      whole_article|dense_transformer|d5
+      whole_article|dense_transformer|d10
+
+  The oracle result is the diagnostic that matters: both articles were
+  in the candidate pool for EVERY chunking strategy at depth 30. So this
+  was never a candidate-generation failure — the retriever always found
+  them, and simply ranked them below the free-trial articles.
+
+  A ranking failure and a candidate failure need opposite fixes. Ranking
+  failures are solved by retrieving deeper, reranking, or fusion.
+  Candidate failures need query rewriting or a corpus change. Phase 2
+  had no oracle, could not tell them apart, and guessed the harder one.
+
+  The correction: retrieving deeper resolves it. What Phase 2 got right
+  is the consequence — at depth 5 the generator receives five confident,
+  on-topic, WRONG chunks, and will answer fluently from them. That
+  remains a retrieval failure that will present as a generation failure,
+  and Phase 6 still has to attribute it correctly.
+
+
+==============================================================================
+PHASE 3 VERDICT
+==============================================================================
+
+Swept 64 configurations. Four things came out of it.
+
+1. DEPTH CANNOT BE CHOSEN BY RECALL.
+   recall@k is monotone in k, so ranking a depth sweep by recall is
+   arithmetic dressed as evidence. Depth was selected against context
+   cost instead.
+
+2. CHUNKING BUYS LARGE CERTAIN SAVINGS FOR SMALL UNCERTAIN COSTS.
+   Top of the recall table : 0.967 at 2536 tokens/query
+   Cheapest contender      : 0.936 at 1526 tokens/query (1.7x cheaper)
+   Verdict against a declared 0.05 margin: INCONCLUSIVE.
+   The saving is certain; the recall cost is bounded above by 0.064
+   at 95% confidence but not resolved. Calling these "equivalent"
+   because p=0.078 would be affirming the null.
+
+3. THE BAKE-OFF FINDS A GROUP, NOT A WINNER.
+   At depth 10, 9 challengers look significantly worse before
+   correction and 5 survive Holm; 10 are not separable. So the sweep does
+   separate a real tail — sentence_window is beaten across every arm —
+   but it cannot rank the top 11 configurations against each other on
+   95 questions. Inside that group, cost and simplicity decide;
+   between the group and the tail, the measurement decides.
+
+4. SELECTION OPTIMISM IS +0.003.
+   Dev winner 0.968 -> held-out 0.965, with regret 0.000.
+   The dev score was flattering by 0.003; the held-out number is the
+   one to quote, since the dev number is contaminated by having
+   chosen the maximum of 64 estimates.
+
+RECOMMENDED CONFIGURATION (<=600 token budget):
+   markdown_section|dense_transformer|d15
+   recall 0.907 at 570 tokens/query
+
+   Chosen on the Pareto frontier under a context budget, not by topping
+   the raw recall table. It gives up 0.060 recall against the
+   leader and costs 4.4x less context per query.
+
+   Section D named fixed_token_128|hybrid|d15
+   as the cheapest serious contender. The two differ by 0.029 recall and 956 tokens —
+   the same choice for practical purposes. The budget rule picks the
+   lexical arm because it scores marginally higher for marginally more
+   context; either is defensible, and preferring one on that margin
+   would be exactly the noise-reading this notebook argues against.
+
+STILL OPEN — carried into Phase 4:
+
+  - Ambiguous questions remain the weak category everywhere
+    (~0.52 at depth 10 vs ~0.95 for single-hop). No
+    configuration fixes this, which suggests the problem is query
+    understanding rather than ranking.
+  - The transformer arm ran.
+
+  - Hybrid fusion did not clearly beat its best constituent. RRF was
+    used untuned by design; tuning k on 95 questions would fit noise.
+
+HANDOFF TO PHASE 4: build the generation layer on the recommended
+configuration, and carry the depth/cost trade-off forward — the token
+budget chosen here is the context the generator has to work with.

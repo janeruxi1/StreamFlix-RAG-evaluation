@@ -45,6 +45,7 @@ Sections
   G. Verdict and handoff to Phase 7
 """
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -67,18 +68,32 @@ from src.evaluation.judge_bias import (
     measure_self_consistency,
 )
 from src.evaluation.judge_validation import validate_judge
+from src.evaluation.judged_arms import write_metrics
 from src.generation.extractive import ExtractiveAnswerer
 from src.generation.pipeline import RAGPipeline
 from src.generation.prompts import VARIANTS, format_context
+from src.generation.refusal import check_refusal
 from src.llm.provider import provider_ready
 from src.retrieval.chunking import STRATEGIES
 from src.retrieval.retrievers import BM25Retriever
 
 FIG_DIR = Path("reports/figures")
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+METRICS_DIR = Path("reports/metrics")
 
 STRATEGY = "markdown_section"
 DEPTH = 15
+
+
+def _record(name: str) -> dict | None:
+    """A measured record from an earlier phase, if one has been written.
+
+    The judged LLM arms cannot be recomputed without a credential, so
+    where this audit needs them it reads the committed record instead of
+    silently skipping the check.
+    """
+    path = METRICS_DIR / name
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 articles = load_corpus()
 golden = load_golden_set()
@@ -163,7 +178,45 @@ print(f"""
   BIASED         : {length_report.is_biased}   ({length_report.direction})
 """)
 
-if length_report.is_biased and length_report.mean_delta < 0:
+if has_key:
+    # A semantic judge returns claim counts and a stated reason. Printing
+    # them is what separates "responds to length" from "found something
+    # in the longer answer", which the score alone cannot distinguish.
+    print("  What the judge said about each longer version:\n")
+    for r in length_report.results:
+        j = judge.faithfulness(r.probe.answer_b, r.probe.context)
+        print(f"    {r.probe.probe_id}: {j.n_supported} of {j.n_claims} claims supported")
+        print(f"      {j.reasoning}\n")
+
+if has_key and length_report.is_biased and length_report.mean_delta < 0:
+    print(f""">>> The longer version scored lower on {length_report.n_material} of {len(length_report.results)} probes, by {abs(length_report.mean_delta):.3f} on
+    average. Read the judge's reasons above before calling that a
+    length bias.
+
+  The probes were written on the assumption that their padding asserts
+  nothing new. That assumption was safe for a lexical judge, for which
+  filler is simply vocabulary absent from the context. A judge that
+  reads meaning does not see filler: it splits the answer into claims,
+  and where it marks one unsupported it names the sentence. If the
+  sentence it names is an inference or a piece of advice the context
+  never states — "which means up to four devices in your household...",
+  "acting promptly is advisable" — then the judge is not responding to
+  length. It is responding to an added claim, and the probe contained
+  one.
+
+  So this number is two things at once, and only one of them is about
+  the judge:
+
+    - As a LENGTH bias it is an upper bound, not an estimate. These
+      probes do not hold claims fixed for a judge that counts claims.
+    - As a description of the judge it is informative: it is strict
+      about elaboration. An answer that adds a helpful-sounding
+      inference loses faithfulness. For a support assistant that is the
+      direction to be strict in.
+
+  Section F tests the length reading directly, against real answers.
+""")
+elif length_report.is_biased and length_report.mean_delta < 0:
     print(f""">>> This judge PENALISES length, by {abs(length_report.mean_delta):.3f} on average.
 
   That is the opposite of the bias the literature reports for LLM
@@ -372,6 +425,32 @@ elif len(agreement.disagreements) == 0:
   this comparison is close to tautological. Treat it as a check that
   the machinery computes, not as evidence about reliability.
 """)
+elif has_key:
+    ref_validation = validate_judge(reference_judge)
+    answers_by_id = {qid: ans for qid, ans, _ in items}
+    on_refusals = sum(1 for qid, _, _ in agreement.disagreements
+                      if check_refusal(answers_by_id[qid]).is_refusal)
+    print(f"""  {len(agreement.disagreements)} disagreements out of {agreement.n}.
+
+  This is not two competent raters splitting hard cases, and reading it
+  that way would be a mistake. The raters are not peers: on the Phase 5
+  validation suite this judge scored {validation.overall_accuracy:.0%} and the lexical judge
+  {ref_validation.overall_accuracy:.0%}. Agreement with an instrument known to be wrong is not a
+  virtue, so low kappa here counts against the lexical judge rather
+  than against either rater equally.
+
+  The disagreements also have a shape. {on_refusals} of the {len(agreement.disagreements)} are on REFUSALS, which
+  the lexical judge scores as unfaithful (a refusal shares no words
+  with the context) and a semantic judge scores as vacuously faithful
+  (it asserts nothing). The rest run the other way: answers stitched
+  from copied fragments, which overlap the context almost perfectly and
+  no longer say what the context says.
+
+  What kappa between a validated and an unvalidated rater cannot do is
+  certify the validated one. That would need a second rater that also
+  passes the gate — a different model family, or human labels on a
+  sample — and this project has neither.
+""")
 else:
     print(f"""  {len(agreement.disagreements)} disagreements out of {agreement.n}. Those are the interesting
   rows: questions where two different scoring formulations reach
@@ -390,8 +469,8 @@ ax1.barh(ids, deltas, color=colors, edgecolor="white")
 ax1.axvline(0, color="#2B2B2B", linewidth=1.2)
 for x in (MATERIAL_DELTA, -MATERIAL_DELTA):
     ax1.axvline(x, linestyle="--", color="#999", linewidth=1)
-ax1.set_xlabel("verbose score − terse score   (0 = unbiased)")
-ax1.set_title(f"Length bias: {judge.name}\ndashed = material threshold",
+ax1.set_xlabel("verbose score − terse score   (0 = scored the same)")
+ax1.set_title(f"Length probes: {judge.name}\ndashed = material threshold",
               fontweight="bold")
 ax1.grid(axis="x", linestyle="--", alpha=0.4)
 ax1.set_axisbelow(True)
@@ -440,10 +519,37 @@ word_gaps = [len(r.probe.answer_b.split()) - len(r.probe.answer_a.split())
 per_word = (length_report.mean_delta / float(np.mean(word_gaps))
             if np.mean(word_gaps) else 0.0)
 
-print("  Prompt instruction length by rung (a proxy for answer length,")
-print("  since the instructions ask for progressively more):\n")
-for name in ("naive", "grounded", "grounded_refusal", "cited", "strict"):
-    print(f"    {name:<18} {prompt_words[name]:>4} words")
+gen_record = _record("04_generation_arms.json")
+judged_record = _record("05_judged_arms.json")
+measured_words = {
+    name: (gen_record or {}).get("arms", {}).get(f"llm_{name}", {}).get("mean_answer_words")
+    for name in VARIANTS}
+have_lengths = all(v is not None for v in measured_words.values())
+
+if have_lengths:
+    print("  Instruction length by rung, beside the answer length it actually")
+    print("  produced (measured, from the Phase 4 record):\n")
+    print(f"    {'rung':<18} {'instruction':>12} {'mean answer':>12}")
+    for name in ("naive", "grounded", "grounded_refusal", "cited", "strict"):
+        print(f"    {name:<18} {prompt_words[name]:>6} words {measured_words[name]:>6.0f} words")
+    longest = max(measured_words, key=measured_words.get)
+    which = ("the rung with the SHORTEST instruction"
+             if prompt_words[longest] == min(prompt_words.values())
+             else "not the rung with the longest instruction")
+    print(f"""
+  This notebook used to treat instruction length as a proxy for answer
+  length, on the reasoning that the upper rungs ask for more. Measured,
+  the longest answers come from `{longest}` at {measured_words[longest]:.0f} words:
+  {which}. An unconstrained model
+  elaborates; an instruction to stay inside the context and cite it
+  makes answers shorter. The proxy pointed the wrong way, so any
+  contamination argument has to use these lengths.
+""")
+else:
+    print("  Prompt instruction length by rung (a proxy for answer length,")
+    print("  since the instructions ask for progressively more):\n")
+    for name in ("naive", "grounded", "grounded_refusal", "cited", "strict"):
+        print(f"    {name:<18} {prompt_words[name]:>4} words")
 
 print(f"""
   Measured length effect : {per_word:+.5f} score per extra answer word
@@ -456,16 +562,16 @@ print(f"""
 if abs(per_word) * 30 >= MATERIAL_DELTA:
     print(f""">>> That is at or above the {MATERIAL_DELTA} material threshold.
 
-  So a Phase 4 ladder comparison run through THIS judge would be
-  substantially contaminated: a variant could win or lose on verbosity
-  alone. Any faithfulness comparison across the ladder needs either a
-  judge without this bias, or answers length-normalised before scoring.
+  So a Phase 4 ladder comparison run through THIS judge would, if the
+  per-word figure held on real answers, be substantially contaminated:
+  a variant could win or lose on verbosity alone. A faithfulness
+  comparison across the ladder would then need either a judge without
+  the effect, or answers length-normalised before scoring.
 
-  Stating it precisely: the bias does not invalidate Phase 4's
-  JUDGE-FREE results — refusal rates, citation integrity, and blame
-  attribution are all counts and regexes, untouched by this. It
-  invalidates faithfulness comparisons ACROSS variants, which is a
-  Phase 5 output, not a Phase 4 one.
+  Stating the exposure precisely: Phase 4's JUDGE-FREE results —
+  refusal rates, citation integrity, and blame attribution — are counts
+  and regexes, untouched by any of this. What is exposed is
+  faithfulness compared ACROSS variants, which is a Phase 5 output.
 """)
 else:
     print(f"""  That is below the {MATERIAL_DELTA} material threshold, so a ~30-word
@@ -477,9 +583,137 @@ else:
 # =====================================================================
 # G. Verdict
 # =====================================================================
+# --- The extrapolation, tested ------------------------------------------
+pairs = (judged_record or {}).get("same_question_comparison", {})
+length_check = None
+if pairs and judge.name in str((judged_record or {}).get("judge", "")):
+    print("""  THE EXTRAPOLATION, TESTED. A per-word effect read off three probes
+  is a prediction, and Phase 5 recorded the data to check it: the same
+  questions answered by two arms whose answers differ in length.
+""")
+    for label, row in pairs.items():
+        a_name, b_name = [s.strip() for s in label.split(" - ")]
+        words = row["mean_answer_words"]
+        gap_words = words[a_name] - words[b_name]
+        predicted = per_word * gap_words
+        f = row["faithfulness"]
+        inside = f["ci_low"] <= predicted <= f["ci_high"]
+        length_check = {"pair": label, "word_gap": gap_words,
+                        "predicted": predicted, "observed": f["difference"],
+                        "ci_low": f["ci_low"], "ci_high": f["ci_high"],
+                        "consistent": inside}
+        print(f"    {label}, {row['n_both_answered']} questions both answered")
+        print(f"      answer length          : {words[a_name]:.0f} vs {words[b_name]:.0f} words ({gap_words:+.0f})")
+        print(f"      predicted from probes  : {predicted:+.3f} faithfulness")
+        print(f"      observed               : {f['difference']:+.3f} [{f['ci_low']:+.3f}, {f['ci_high']:+.3f}]")
+        if inside:
+            print("""
+  The prediction falls inside the observed interval, so the per-word
+  reading is not contradicted by real answers. The contamination
+  warning above stands.
+""")
+        else:
+            print(f"""
+>>> The prediction is outside the observed interval. Real answers that
+    differ by {abs(gap_words):.0f} words do not show the gap a per-word length penalty
+    requires.
+
+  That supports the second reading of Section B. The judge does not
+  charge by the word. It charged the probes for specific added claims,
+  and real answers that are longer without adding unsupported claims
+  are not penalised. The contamination warning above does not apply to
+  this judge on this data.
+
+  The caveat runs the other way from the usual one. This comparison is
+  observational: the two arms differ in more than length, so it cannot
+  prove the absence of a small length effect. What it rules out is an
+  effect of the size the probes implied.
+""")
+
+if has_key:
+    # Recorded for the same reason as the Phase 4 and 5 results: CI has
+    # no key, so the memo's claims about the judge are checked against
+    # this file. Written only when an LLM judge was actually audited.
+    write_metrics(METRICS_DIR / "06_judge_audit.json", {
+        "judge": repr(judge),
+        "length_probes": {
+            "n": len(length_report.results),
+            "n_material": length_report.n_material,
+            "mean_delta": round(length_report.mean_delta, 6),
+            "per_word": round(per_word, 5),
+        },
+        "order_probes": {"n": len(order_report.results),
+                         "max_abs_delta": round(order_report.max_abs_delta, 6)},
+        "self_consistency_max_spread": round(consistency.max_abs_delta, 6),
+        "agreement_with_lexical": {
+            "n": agreement.n,
+            "raw_agreement": round(agreement.raw_agreement, 6),
+            "kappa": (round(agreement.kappa, 6) if agreement.has_variance else None),
+            "disagreements": len(agreement.disagreements),
+        },
+        "length_extrapolation_check": None if length_check is None else {
+            "pair": length_check["pair"],
+            "word_gap": round(length_check["word_gap"], 1),
+            "predicted": round(length_check["predicted"], 6),
+            "observed": length_check["observed"],
+            "ci_low": length_check["ci_low"],
+            "ci_high": length_check["ci_high"],
+            "consistent": bool(length_check["consistent"]),
+        },
+    })
+    print(f"  Saved -> {METRICS_DIR}/06_judge_audit.json\n")
+
 print("=" * 78)
 print("PHASE 6 VERDICT")
 print("=" * 78)
+
+if has_key:
+    length_verdict = (
+        f"The longer versions scored lower on {length_report.n_material} of "
+        f"{len(length_report.results)} probes. The judge's reasons name\n"
+        "   specific added claims, so as a LENGTH bias this is an upper bound; "
+        "as a\n   description of the judge it shows strictness about elaboration."
+        if length_report.mean_delta < -0.05 else
+        "Rewards verbosity — the documented LLM-judge failure mode."
+        if length_report.mean_delta > 0.05 else "No material effect.")
+    if length_check is not None:
+        length_verdict += (
+            f"\n   Tested on real answers {abs(length_check['word_gap']):.0f} words apart: predicted "
+            f"{length_check['predicted']:+.3f}, observed {length_check['observed']:+.3f}\n"
+            f"   [{length_check['ci_low']:+.3f}, {length_check['ci_high']:+.3f}] — "
+            + ("consistent with a per-word effect." if length_check["consistent"]
+               else "a per-word penalty of that size is ruled out."))
+    agreement_verdict = (
+        "Against a rater that failed the accuracy gate, so low agreement counts\n"
+        "   against that rater. It does not certify this one: that needs a second\n"
+        "   rater that also passes.")
+else:
+    length_verdict = (
+        "Penalises verbosity — the opposite of the documented LLM-judge bias, and a direct consequence of scoring by term overlap."
+        if length_report.mean_delta < -0.05 else
+        "Rewards verbosity — the documented LLM-judge failure mode."
+        if length_report.mean_delta > 0.05 else "No material effect.")
+    agreement_verdict = (
+        "Chance-corrected rather than raw, because raw agreement is inflated whenever one verdict dominates."
+        if agreement.has_variance else
+        "Both raters called every answer faithful, so expected agreement is 1.0 and kappa is 0/0. Reporting the raw 100% as reliability would be the error this metric exists to prevent.")
+
+mh011_record = (judged_record or {}).get("mh011", {})
+llm_mh011 = {k: v for k, v in mh011_record.items() if k.startswith("llm_")}
+if llm_mh011:
+    stances = "; ".join(f"{k} {v['stance']} (correctness {v['correctness']:.2f})"
+                        for k, v in llm_mh011.items())
+    surfaced = [k for k, v in llm_mh011.items() if v["stance"] == "states_both"]
+    mh011_open = f"""  - mh-011 is answered, from the Phase 5 record: {stances}.
+    {'At least one judged arm states both refund windows.' if surfaced else 'No judged arm states both refund windows.'} The judge's correctness
+    scores are against a reference that names the conflict, so a high
+    score for an answer that omits it is the judge being lenient on
+    omission: it checks the claims an answer makes, and a missing
+    caveat is not a false claim. That is a blind spot to design for."""
+else:
+    mh011_open = f"""  - mh-011, still. Both refund windows retrieve at depth {DEPTH}; whether
+    any variant FLAGS the conflict rather than silently choosing one
+    remains unanswered and needs the LLM arms."""
 
 audited = [("length", length_report), ("context order", order_report),
            ("consistency", consistency)]
@@ -490,7 +724,7 @@ Audited {judge.name} on three dimensions beyond accuracy.
 
 1. ACCURACY IS NOT ENOUGH.
    Phase 5 asked whether the judge gets known cases right; this phase
-   asks what else it responds to. {'It failed' if biased_dims else 'It showed no material bias'} on {len(biased_dims)} of 3
+   asks what else it responds to. {'It showed a material effect' if biased_dims else 'It showed no material bias'} on {len(biased_dims)} of 3
    dimensions{': ' + ', '.join(biased_dims) if biased_dims else ''}.
 
 2. PAIRED PROBES, NOT CORRELATIONS.
@@ -499,25 +733,21 @@ Audited {judge.name} on three dimensions beyond accuracy.
    Each probe holds claims, context and citations fixed and varies one
    thing, so a gap is attributable rather than suggestive.
 
-3. LENGTH EFFECT: {length_report.mean_delta:+.3f} MEAN.
-   {'Penalises verbosity — the opposite of the documented LLM-judge bias, and a direct consequence of scoring by term overlap.' if length_report.mean_delta < -0.05 else 'Rewards verbosity — the documented LLM-judge failure mode.' if length_report.mean_delta > 0.05 else 'No material effect.'}
+3. LENGTH EFFECT ON THE PROBES: {length_report.mean_delta:+.3f} MEAN.
+   {length_verdict}
 
 4. THE FLOOR ON MEASURABLE DIFFERENCES IS {consistency.max_abs_delta:.3f}.
    Gaps smaller than the judge's own run-to-run variation are not small
    effects, they are unmeasurable ones.
 
 5. AGREEMENT: {"kappa " + format(agreement.kappa, ".3f") if agreement.has_variance else "UNDEFINED"}.
-   {"Chance-corrected rather than raw, because raw agreement is inflated whenever one verdict dominates." if agreement.has_variance else "Both raters called every answer faithful, so expected agreement is 1.0 and kappa is 0/0. Reporting the raw 100% as reliability would be the error this metric exists to prevent."}
+   {agreement_verdict}
 
-{'' if has_key else '''NOT YET MEASURED — no credential. The lexical judge was audited, which
-is genuinely informative about IT, but the comparison this phase exists
-for is a semantic judge against a lexical one. Two specific results are
-pending:
-
-  - whether gpt-4o shows the documented POSITIVE length bias, giving
-    two judges with opposite biases and no threshold that fixes either
-  - the disagreement set between them, which is where reading meaning
-    and counting words diverge, and is the most interesting output here
+{'' if has_key else '''NOT MEASURED IN THIS RUN — no credential. The lexical judge was audited
+here, which is genuinely informative about IT. The audit of the LLM
+judge — its probe results, the test of the length reading against real
+answers, and its agreement with the lexical judge — comes from the
+credentialed run and is recorded in reports/metrics/06_judge_audit.json.
 
 '''}STILL OPEN — carried into Phase 7:
 
@@ -527,9 +757,7 @@ pending:
   - The probe set is {len(LENGTH_PROBES) + len(ORDER_PROBES)} hand-written pairs. Enough to detect a
     gross bias, not enough to estimate its size precisely. The reported
     per-word figure is an order of magnitude, not a coefficient.
-  - mh-011, still. Both refund windows retrieve at depth {DEPTH}; whether
-    any variant FLAGS the conflict rather than silently choosing one
-    remains unanswered and needs the LLM arms.
+{mh011_open}
 
 HANDOFF TO PHASE 7: the deployment decision memo — what ships, at what
 context budget, with which known failure modes and which measurement

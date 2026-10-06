@@ -1,0 +1,156 @@
+==============================================================================
+A. THE RECOMMENDATION
+==============================================================================
+
+  SHIP     the retrieval layer: markdown_section + BM25 at depth 15,
+           costing ~591 context tokens per query.
+
+  HOLD     the generation layer. It is built, tested, and unmeasured.
+           No LLM arm has ever run, so no claim about answer quality in
+           this project is backed by evidence.
+
+  The split is the recommendation. Retrieval was measured across 48
+  configurations with paired inference and held-out selection; it is
+  ready. Generation has a complete harness pointed at it and no
+  readings. Shipping both on the strength of the first would be
+  borrowing credibility from the measured half to cover the unmeasured
+  half, which is the specific mistake this project was built to avoid.
+
+==============================================================================
+B. EVIDENCE — RETRIEVAL
+==============================================================================
+
+  context_recall    : 0.882
+  context_precision : 0.211  against a ceiling of 0.441
+                      (48% of what is structurally possible)
+
+  category         recall  precision   ceiling  % of max
+  ------------------------------------------------------
+  single_hop        0.983      0.186     0.292       63%
+  multi_hop         0.817      0.313     0.620       51%
+  ambiguous         0.561      0.178     0.800       22%
+
+  Why the configuration was chosen: it sits on the Pareto frontier under
+  a 600-token context budget, not at the top of the recall table. The
+  highest-recall configuration costs 4.5x more context for a difference
+  that fails a significance test — and the cheap option is INCONCLUSIVE
+  rather than equivalent, so the honest claim is a certain cost saving
+  against an unresolved recall cost bounded above by 0.084.
+
+  The weak category is ambiguous at 22% of its ceiling. That is the
+  deployment risk worth naming: underspecified questions are where this
+  system is furthest from what its own architecture allows.
+
+==============================================================================
+C. UNMEASURED — AND WHAT IT WOULD TAKE
+==============================================================================
+
+  Credential present : True
+
+
+  Unmeasured, in order of how much it should hold up a deployment:
+
+  1. ANSWER QUALITY. No LLM arm has run. Faithfulness, relevancy and
+     correctness have a harness and no readings. The extractive
+     baseline's 62% in-scope answer rate is a floor for a
+     non-LLM method, not a forecast for the LLM.
+
+  2. THE JUDGE. The only judge exercised end to end scores 50% on
+     the Phase 5 validation gate and fails it. Its faithfulness numbers
+     are harness output, not evidence.
+
+  3. JUDGE BIAS AT DEPLOYMENT SCALE. The audited judge penalises length
+     by -0.521, material on 3 of 3 probes. Whether the intended
+     production judge shows the opposite (documented) bias is unknown,
+     and it determines whether prompt-variant comparisons mean anything.
+
+  Cost to close all three: roughly $3 of judge calls plus cents of
+  generation, in one run of `python scripts/run_llm_eval.py`, which
+  prints the plan before spending anything. That is the entire gap
+  between a conditional recommendation and an evidenced one.
+
+==============================================================================
+D. KNOWN FAILURE MODES, RANKED BY DEPLOYMENT RISK
+==============================================================================
+
+  Ranked by cost to a customer, not by frequency.
+
+  1. ANSWERING AN UNANSWERABLE QUESTION       11/25 out-of-scope
+     A confident wrong answer about billing is the most expensive
+     output this system can produce. It is also the one the corpus was
+     built to provoke: the hardest out-of-scope questions have a
+     topically adjacent article that is silent on the actual question.
+
+  2. AMBIGUOUS QUESTIONS UNDER-RETRIEVE       22% of ceiling
+     Not a ranking failure. The system retrieves the wrong articles
+     because it cannot tell which reading of the question was meant —
+     a query-understanding problem that neither retrieval tuning nor
+     prompting addresses.
+
+  3. THE PLANTED CONTRADICTION (mh-011)       unresolved
+     Both refund windows retrieve at depth 15, so the evidence is
+     present. Whether any answer FLAGS the conflict rather than
+     silently picking one is unmeasured and needs the LLM arms.
+
+  4. OVER-REFUSAL                             34 in-scope questions
+     A silent UX failure: the user gets nothing when the evidence was
+     available. Cheaper than a wrong answer, and invisible in any
+     metric that only counts hallucinations.
+
+==============================================================================
+E. VERIFICATION — EVERY MEMO NUMBER RECOMPUTED
+==============================================================================
+
+  claim                         live value   present in memo
+  --------------------------------------------------------------
+  articles                              45   yes
+  golden questions                     120   yes
+  retrieval depth                       15   yes
+  context tokens                   591.252   yes
+  context recall                     0.882   yes
+  context precision                  0.211   yes
+  precision ceiling                  0.441   yes
+  ambiguous % of ceiling             0.222   yes
+  baseline answer rate               0.621   yes
+  baseline OOS refusal               0.560   yes
+  judge accuracy                     0.500   yes
+  judge length bias                 -0.521   yes
+  answered out-of-scope                 11   yes
+  over-refusals                         34   yes
+
+  All 14 memo claims match live output.
+
+  This check is the point of the phase as much as the memo is. Numbers
+  in a markdown file rot silently; numbers verified by a job that fails
+  the build cannot. Every figure in the memo is reproducible from this
+  repository at the commit it was written against.
+
+==============================================================================
+PHASE 7 VERDICT
+==============================================================================
+
+The deliverable is reports/decision_memo.md. This notebook exists to
+keep it honest.
+
+1. THE RECOMMENDATION IS SPLIT, DELIBERATELY.
+   Ship retrieval, hold generation. Retrieval was measured across 48
+   configurations with paired inference, multiplicity correction and
+   held-out selection. Generation has a complete harness and zero
+   readings. Recommending both would borrow credibility from the
+   measured half.
+
+2. UNMEASURED IS MARKED UNMEASURED.
+   Three specific gaps, each with the cost of closing it stated
+   (~$3 and one run). A reader can tell exactly which claims rest on
+   evidence and which rest on architecture.
+
+3. FAILURE MODES ARE RANKED BY COST, NOT FREQUENCY.
+   Answering an unanswerable billing question is rarer than
+   over-refusing and far more expensive. A frequency-ordered list would
+   invert the priority.
+
+4. EVERY NUMBER IS VERIFIED BY THIS NOTEBOOK.
+   14 claims, recomputed and matched. CI fails on drift.
+
+PROJECT COMPLETE at 7 of 7 phases, with the generation half of the
+system honestly labelled as built-but-unvalidated rather than shipped.

@@ -185,7 +185,15 @@ def paired_mean_difference(a: list[float], b: list[float], n_boot: int = 2000,
     independent means would throw that away and report a wider interval
     than the data supports.
 
-    Returns (difference, ci_low, ci_high).
+    Returns (difference, ci_low, ci_high), each rounded to six places.
+
+    Rounded HERE, once, because these values are both printed by a
+    notebook and written to a record that the memo quotes. A mean of
+    simple fractions is often an exact tie in the third decimal (7.5/120
+    is 0.0625), and floating point lands a hair to one side of it. Two
+    consumers formatting the raw and the stored value then disagree in
+    the last digit — "+0.063" in the notebook, "+0.062" in the memo —
+    about the same measurement.
     """
     if len(a) != len(b):
         raise ValueError("paired comparison needs equal-length score lists")
@@ -195,18 +203,44 @@ def paired_mean_difference(a: list[float], b: list[float], n_boot: int = 2000,
     rng = np.random.default_rng(seed)
     idx = rng.integers(0, len(diffs), size=(n_boot, len(diffs)))
     boot = diffs[idx].mean(axis=1)
-    return (float(diffs.mean()),
-            float(np.percentile(boot, 100 * alpha / 2)),
-            float(np.percentile(boot, 100 * (1 - alpha / 2))))
+    return (round(float(diffs.mean()), 6),
+            round(float(np.percentile(boot, 100 * alpha / 2)), 6),
+            round(float(np.percentile(boot, 100 * (1 - alpha / 2))), 6))
+
+
+def wilson_lower_bound(successes: int, n: int, z: float = 1.96) -> float:
+    """Lower end of the Wilson score interval for a proportion.
+
+    The number that turns "25 of 25" into a claim that can be defended.
+    A perfect score on a small sample is not evidence of a perfect
+    system: with n=25, an underlying failure rate of one in ten produces
+    a clean sweep about 7% of the time. The Wilson bound stays inside
+    [0, 1] and behaves at the extremes, where the usual normal
+    approximation reports a zero-width interval at exactly 100%.
+    """
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if not 0 <= successes <= n:
+        raise ValueError("successes must be between 0 and n")
+    p = successes / n
+    denom = 1 + z * z / n
+    centre = p + z * z / (2 * n)
+    spread = z * ((p * (1 - p) + z * z / (4 * n)) / n) ** 0.5
+    return max(0.0, (centre - spread) / denom)
 
 
 # ---------------------------------------------------------------------
 # A record of the measured results
 # ---------------------------------------------------------------------
 def report_to_dict(report: RunReport) -> dict:
-    """A RunReport as plain JSON types, rounded for a stable diff."""
+    """A RunReport as plain JSON types, rounded for a stable diff.
+
+    Six decimals, not three or four: these values are quoted elsewhere to
+    three places, and rounding twice can move the last digit (0.0395
+    prints as 0.039 or 0.040 depending on which rounding came first).
+    """
     def r(x: float) -> float | None:
-        return None if x != x else round(float(x), 4)      # NaN -> null
+        return None if x != x else round(float(x), 6)      # NaN -> null
 
     return {
         "answerer": report.answerer,

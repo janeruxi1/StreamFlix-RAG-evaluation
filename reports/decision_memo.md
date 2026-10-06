@@ -8,27 +8,24 @@
 
 ## TL;DR
 
-**Recommendation: ship the retrieval layer. Hold the generation layer.**
+**Ship the retrieval layer. Pilot the `cited` generation layer with a
+support agent in the loop. Do not ship the `naive` prompt in any form.**
 
-The split is the recommendation, not a hedge.
-
-- **Retrieval is measured and ready.** 48 configurations compared with
-  paired inference, multiplicity correction and held-out selection. The
-  shipping configuration reaches **0.882** context recall at ~**591
+- **Retrieval is measured and ready.** BM25 over author-headed sections
+  at depth 15 reaches **0.882** context recall for about **571 estimated
   context tokens** per query.
-- **Generation is built, tested, and unmeasured.** The full harness
-  exists and points at it. No LLM arm has ever run, so **no claim about
-  answer quality in this project is backed by evidence.**
+- **Generation is measured, and good on the sample it was measured on.**
+  The `cited` prompt refused **25 of 25 out-of-scope** questions, produced
+  **0 fabricated citations**, and scored **0.984** faithfulness on the
+  **76 answers** it gave — from a judge that scored **100% on 9 validation
+  cases** before any of its scores were used.
+- **The sample is what holds it at "pilot".** 25 of 25 supports a true
+  refusal rate of at least **86.7%** (95% Wilson lower bound). It cannot
+  exclude about one unanswerable question in 8 being answered, and for
+  billing questions that is not a bound to deploy on unattended.
 
-Shipping both on the strength of the first would borrow credibility from
-the measured half to cover the unmeasured half. That is the specific
-mistake this project was built to avoid, and it would be strange to
-finish by making it.
-
-**Cost to close the gap: about $3 in judge calls plus cents of
-generation, in one run of `python scripts/run_llm_eval.py`.** That is the
-entire distance between a conditional recommendation and an evidenced
-one.
+The three parts rest on different amounts of evidence, and the
+recommendation is graded to match rather than rounded up to "ship".
 
 ---
 
@@ -38,20 +35,46 @@ one.
 |---|---|
 | **Chunking** | `markdown_section` — split on the author's own headings |
 | **Retrieval** | BM25 (Okapi, k1=1.5, b=0.75) at depth 15 |
-| **Context cost** | ~591 context tokens per query |
+| **Context cost** | ~571 estimated context tokens per query |
 | **Corpus** | 45 articles, evaluated on 120 questions |
 
-**Why this configuration and not the top of the recall table.** It sits on
-the Pareto frontier under a 600-token context budget. The highest-recall
-configuration costs **4.5× more context** for a recall difference that
-fails a paired significance test.
+Token figures are estimates (words × 1.3), computed identically on every
+machine. Exact tokenizer counts run about 5.5% higher on this corpus.
 
-The honest form of that claim matters: the cheap configuration is
-**INCONCLUSIVE, not equivalent**. Against a declared 0.05 margin of
-practical equivalence its confidence interval reaches 0.084, so it spills
-past the margin. What can be said is that the 4.5× saving is certain and
-the recall cost is bounded above by 0.084 at 95% confidence. Ninety-five
-questions cannot resolve it more finely than that.
+### What the context budget costs
+
+The configuration was chosen under a 600-token context budget, not from
+the top of the recall table. Across **64 configurations**, the top of the
+table is `whole_article` with transformer embeddings at depth 15:
+**0.967 recall** for **4.4x** the context.
+
+The gap between that and what ships is **+0.085 [+0.039, +0.135]** recall,
+and its interval excludes zero. The budget is a trade with a measured
+price, not a free saving. Whether the extra context would help or hurt
+the *answers* is not something a retrieval metric can say, because more
+evidence and more distractors arrive together. It is the first open
+question below.
+
+### Why BM25 and not the transformer
+
+On the same chunks at the same depth and cost, transformer embeddings
+reach **0.907** against BM25's 0.882: a difference of
+**+0.025 [-0.039, +0.090]**, with **22 of 95 questions** differing at
+all. Against the declared 0.05 equivalence margin that is
+**inconclusive** — the data supports neither "better" nor "the same".
+
+Given an unresolved difference, the simpler system ships: no model
+download, no fitted state, exactly reproducible. The more useful finding
+is *where* they differ:
+
+| Category | BM25 | Transformer |
+|---|---:|---:|
+| `single_hop` | 0.983 | 0.933 |
+| `multi_hop` | 0.817 | 0.950 |
+| `ambiguous` | 0.561 | 0.744 |
+
+The two fail on different questions, which argues for combining them
+rather than swapping one for the other.
 
 ---
 
@@ -64,120 +87,160 @@ questions cannot resolve it more finely than that.
 
 **Precision must be read against its ceiling.** Articles split into ~4.5
 chunks, so a single-article question retrieved at depth 15 can fill at
-most ~4.5 of 15 slots with relevant material. The rest *must* be
-irrelevant. Reported against an implicit ceiling of 1.0 — the usual way —
-the same system looks broken.
-
-Per category, which inverts the raw reading:
-
-| Category | recall | precision | ceiling | % of max |
-|---|---:|---:|---:|---:|
-| `single_hop` | 0.983 | 0.186 | 0.292 | 63% |
-| `multi_hop` | 0.817 | 0.313 | 0.620 | 51% |
-| `ambiguous` | 0.561 | 0.178 | 0.800 | **22%** |
-
-`single_hop` looks worst on raw precision and is *nearest* its limit. The
-real weak spot is `ambiguous`, which has the most relevant material
-available and finds the least of it — invisible in the raw column where
-it and `single_hop` differ by 0.008.
+most ~4.5 of 15 slots with relevant material. Per category the reading
+inverts: `single_hop` looks worst on raw precision and is nearest its
+limit, while `ambiguous` reaches only **22% of** its ceiling — the most
+relevant material available, and the least of it found.
 
 ---
 
-## What is NOT measured
+## Evidence — generation
 
-Ordered by how much each should hold up a deployment.
+Generator `gpt-4o-mini`, judged by `gpt-4o`, on all 120 questions.
 
-**1. Answer quality — entirely unmeasured.** No LLM arm has run.
-Faithfulness, relevancy and correctness have a harness and no readings.
-The extractive baseline's **62.1%** in-scope answer rate and **56.0%**
-out-of-scope refusal rate are a floor for a *non-LLM* method, not a
-forecast for the LLM.
+| Arm | Refuses out-of-scope | Answers in-scope | Faithfulness (answered) | Correctness (all) |
+|---|---:|---:|---:|---:|
+| extractive baseline | 56.0% | 62.1% | — | 0.268 |
+| `naive` | 0.0% | 100.0% | 0.764 | 0.795 |
+| `cited` | 100.0% | 80.0% | 0.984 | 0.733 |
 
-**2. The judge — fails its own gate.** The only judge exercised end to end
-scores **50%** on the Phase 5 validation suite, below the 80% trust
-threshold. Its faithfulness numbers are harness output, not evidence. It
-is in the repository because its failures are informative: it rates
-contradictions as fully faithful, because a contradicting sentence reuses
-nearly every term of the context it contradicts.
+**1. The LLM earns its cost.** Judged correctness of 0.733 against 0.268
+for an extractive answerer that copies sentences out of the context.
 
-**3. Judge bias at deployment scale.** The audited judge penalises answer
-length by **-0.521** on average, material on 3 of 3 probes — the opposite
-of the documented LLM-judge tendency to reward verbosity. Whether the
-intended production judge shows the opposite bias is unknown, and it
-determines whether prompt-variant comparisons mean anything at all.
+**2. The refusal instruction is what separates the arms.** `naive`
+answered every unanswerable question, and **23 of 25** of those answers
+contain claims the judge found unsupported. `cited` refused all 25, and
+scores a refusal F1 of 0.889.
+
+**3. When both arms answer, they are equally faithful.** The headline
+faithfulness gap, 0.984 against 0.764, is mostly composition: each arm is
+averaged over the questions *it* chose to answer, and `naive` chose to
+answer the unanswerable ones. On the **76 questions both** arms answered
+it is **0.984 against 0.970**, a difference of **-0.015 [-0.040, +0.010]**
+(`naive` minus `cited`). `cited` is not a more careful writer. It is a
+writer that knows when to stop.
+
+**4. Refusing has a measured price.** Correctness, `naive` minus `cited`:
+
+| Questions | Difference |
+|---|---:|
+| in-scope (95) | **+0.160 [+0.102, +0.219]** |
+| out-of-scope (25) | **-0.308 [-0.496, -0.116]** |
+| all (120) | +0.062 [-0.007, +0.133] |
+
+The two effects nearly cancel, so the single overall number says the
+arms are indistinguishable while each half says they are not. `cited`
+gives up real helpfulness on answerable questions to buy safety on
+unanswerable ones. That is the right trade for billing, and it is a
+trade.
+
+**5. Over-refusal is partly a retrieval problem.** `cited` declined
+**19 of 95** answerable questions. The evidence was fully retrieved for
+10, partly for 6 and not at all for 3, so nearly half were declined
+without the full evidence in hand, which no prompt fixes. And
+**10 of the 15 ambiguous** questions were refused: the category retrieval
+is weakest on is the one generation gives up on.
+
+---
+
+## How much the evidence can bear
+
+**The safety number is a small sample.** 25 of 25 is a lower bound of
+86.7% on the true refusal rate. A system that answered one unanswerable
+question in ten would still produce a clean sweep on 25 questions about
+7% of the time. The questions were also written by the same person who
+wrote the corpus.
+
+**The judge is validated, not certified.** Nine cases with known verdicts
+is a floor test; the lexical judge it replaced scores 50% on the same
+suite. On the bias probes the longer answer scored lower on
+**2 of 3 probes** (**-0.222** mean), and the judge's stated reasons name
+specific added claims rather than length. Checked against real answers
+(`naive` averages 67 words, `cited` 38 words), a per-word penalty
+predicts a faithfulness gap of **-0.171** and the data shows -0.015. So
+the judge is strict about elaboration and does not charge by the word.
+Its agreement with the lexical judge is kappa -0.465, which counts
+against the lexical judge; no second validated rater exists.
+
+**The judge is lenient on omission.** On the planted contradiction it
+scored the two arms **0.80 and 0.80** against a reference answer that
+names the conflict, though neither answer does. It checks the claims an
+answer makes, and a missing caveat is not a false claim.
+
+**One model, one run, one corpus.** Temperature 0, a single generator
+version, a synthetic help centre. None of this says anything about a
+different model or real customer questions.
 
 ---
 
 ## Known failure modes, ranked by cost to a customer
 
-Ranked by expense, not frequency. A frequency-ordered list inverts the
-priority.
+Ranked by expense, not frequency.
 
-**1. Answering an unanswerable question — 11 of 25 out-of-scope.**
-A confident wrong answer about billing is the most expensive output this
-system can produce. It's also the failure the corpus was built to
-provoke: the hardest out-of-scope questions have a topically adjacent
-article that is silent on the actual question, so retrieval returns
-something plausible and the generator answers from it.
+**1. Two sources disagree and the answer does not say so.** Two articles
+state different refund windows, 14 days and 30. Both retrieve. `naive`
+asserts 14 days (`states_one`); `cited` names neither window and points
+at the refund policy (`states_neither`). No judged arm surfaces the
+conflict. This is a corpus defect that a prompt cannot repair, and it is
+the one failure the judge under-scores.
 
-**2. Ambiguous questions under-retrieve — 22% of ceiling.**
-Not a ranking failure. The system retrieves the wrong articles because it
-cannot tell which reading of the question was meant. That is query
-understanding, and neither retrieval tuning nor prompting addresses it.
+**2. Answering an unanswerable question.** Not observed for `cited`, and
+bounded only as far as 25 questions can bound it.
 
-**3. The planted contradiction (mh-011) — unresolved.**
-Two articles state different refund windows. Both retrieve at depth 15,
-so the evidence is present. Whether any answer *flags* the conflict
-rather than silently picking one is unmeasured and needs the LLM arms.
+**3. An unsupported claim inside a cited answer.** **3 of 76** answers
+fell below the faithfulness threshold. A citation makes an answer
+checkable, not correct.
 
-**4. Over-refusal — 34 in-scope questions.**
-A silent UX failure: the user gets nothing when the evidence was
-available. Cheaper than a wrong answer, and invisible to any metric that
-only counts hallucinations.
+**4. Over-refusal.** 19 answerable questions declined. A silent failure:
+the customer gets nothing, and no hallucination metric records it.
+
+**5. Ambiguous questions.** Retrieval finds little of what is available
+and generation then refuses most of them. This is query understanding,
+which neither retrieval tuning nor prompting addresses.
 
 ---
 
-## Deployment conditions
+## Pilot conditions
 
-If the retrieval layer ships on its own — as a "related articles" surface
-rather than an answering bot — it needs no further validation. That is the
-recommendation.
+The pilot is agent-assist: a support agent sees the cited draft and its
+sources, and decides what the customer receives.
 
-If the generation layer is to ship, these gate it:
+1. **Fix the refund-window contradiction in the help centre before the
+   pilot starts.** It is a content defect, and the system currently
+   hides it.
+2. **Log every refusal with its retrieved articles**, so over-refusal is
+   measured on real questions rather than inferred from 95 synthetic
+   ones.
+3. **Have agents label a sample of answers**, which gives the judge the
+   second rater it lacks.
 
-1. **The judge passes its validation gate** (≥80% on the 9-case suite).
-   Until then no faithfulness number means anything.
-2. **The prompt ladder is compared on a judge without material length
-   bias**, or on length-normalised answers. The rungs differ
-   systematically in verbosity, so a biased judge would rank them on
-   length.
-3. **Out-of-scope refusal is measured on the LLM arms.** The 25
-   unanswerable questions are the deployment risk, and the baseline's
-   56.0% tells us nothing about what the LLM will do.
-4. **mh-011 is resolved** — does any variant flag the contradiction?
+## What would move this to "ship"
 
----
-
-## What would change this recommendation
-
-- **The LLM arms run and refusal on out-of-scope is high.** Then the
-  generation layer becomes shippable and this memo is superseded.
-- **The transformer retrieval arm beats BM25 materially.** It has never
-  run; `sentence-transformers` was not installed. If it wins by more than
-  the equivalence margin, the shipping configuration changes.
-- **The corpus grows.** Every ceiling in this memo is a function of 45
-  articles at depth 15. More articles move the precision ceiling and may
-  change which chunking strategy sits on the frontier.
+- **A larger out-of-scope set.** Roughly 300 unanswerable questions with
+  no answered case would put the lower bound near 99%. Twenty-five
+  cannot.
+- **The deep-context configuration, judged.** Generation was only
+  measured on the 571-token context. The 0.967-recall configuration
+  might cut over-refusal, or dilute faithfulness, and only running the
+  judged arms on it will say which.
+- **A clarifying-question path for ambiguous queries**, since refusing 10
+  of 15 is safe and unhelpful.
 
 ---
 
 ## Verification
 
-Every number in this memo is recomputed by
-`notebooks/07_decision_memo.py` and compared against live output. CI runs
-it and fails the build on drift.
+Every number in this memo is checked by `notebooks/07_decision_memo.py`,
+which CI runs and which fails the build on drift. The check is of two
+kinds, and the notebook says which applies to each number:
 
-Numbers in a markdown file rot silently, and a stale memo is worse than
-no memo because it carries the authority of having been checked once.
-Every figure here is reproducible from this repository at the commit it
-was written against.
+- **Live.** Retrieval metrics, the extractive baseline and the lexical
+  judge are recomputed from this repository on every run.
+- **Recorded.** Anything that needed an API key or a model download —
+  the LLM arms, the LLM judge, the transformer retrieval arm — is checked
+  against the measured records in `reports/metrics/`, which are written
+  only when the measurement actually ran. CI has no key by design, so it
+  cannot recompute these; it can confirm the memo says what was measured.
+
+Re-running `python scripts/run_llm_eval.py` regenerates the records, and
+any change in them fails the check until this memo is updated.

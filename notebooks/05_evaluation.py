@@ -56,6 +56,7 @@ from src.evaluation.judged_arms import (
     parse_arms,
     plan_judging,
     report_to_dict,
+    wilson_lower_bound,
     write_metrics,
 )
 from src.evaluation.rag_metrics import (
@@ -422,11 +423,19 @@ print(f"""
   when this system does make claims, how often are they supported. The
   all-questions figure is kept visible rather than deleted so the
   inflation is auditable rather than hidden.
+""")
 
-  (Here the two run in the opposite direction, because the lexical judge
+if report_run.faithfulness_all < report_run.faithfulness:
+    print("""  (Here the two run in the opposite direction, because this judge
   scores refusals near ZERO rather than 1.0 — one of the failures
   Section B catches. With a judge that handles refusals correctly, the
   all-questions number would sit ABOVE the answered-only one.)
+""")
+else:
+    print(f"""  (Here the inflation is visible: {report_run.faithfulness_all:.3f} over all questions against
+  {report_run.faithfulness:.3f} over answered ones. The refusals are being scored as
+  vacuously faithful, which is correct for each refusal and misleading
+  as an average.)
 """)
 
 print("  Failure modes across all 120 questions:\n")
@@ -505,6 +514,15 @@ else:
   Sending all of them to a prompt-engineering fix — the reflex when a
   dashboard shows "hallucination rate: X%" — would aim {ret_fail} of them at
   the wrong component entirely.
+
+  One thing this table shows that the lexical judge could not. This
+  answerer copies sentences out of the context verbatim, and under term
+  overlap that made it faithful by construction. A judge that reads
+  meaning still finds {gen_fail} of its answers unfaithful — because it
+  stitches together sentence FRAGMENTS from different articles, and a
+  fragment cut mid-sentence and attached to another source's citation
+  is no longer a claim that source makes. Copying words is not the same
+  as preserving what they said.
 """)
 
 # --- Chart ------------------------------------------------------------
@@ -579,8 +597,10 @@ arm_evaluated: dict[str, list] = {}
 arm_reports: dict[str, object] = {}
 
 if not has_key:
-    print("""  NOT MEASURED — no credential, so no LLM arm ran and none was judged.
-  The table below would hold one row per arm.
+    print("""  NOT MEASURED IN THIS RUN — no credential, so no LLM arm ran here and
+  none was judged. The judged results from the credentialed run are
+  recorded in reports/metrics/05_judged_arms.json, and Phase 7 checks
+  the memo against that record.
 """)
 elif not report.is_trustworthy:
     print(f""">>> NOT RUN — the judge failed Section B at {report.overall_accuracy:.0%}.
@@ -660,6 +680,7 @@ if arm_reports:
 
     # --- Paired comparison ---------------------------------------------
     comparisons = {}
+    comparisons_split = {}
     arm_list = list(arm_evaluated)
     if len(arm_list) >= 2:
         print("""
@@ -677,6 +698,139 @@ if arm_reports:
                            else "interval includes zero — not distinguishable")
                 print(f"    {a_name} - {b_name}: {diff:+.3f} "
                       f"[{lo:+.3f}, {hi:+.3f}]  {verdict}")
+                # The all-questions figure nets two opposite effects: one
+                # arm is more helpful on answerable questions, the other
+                # is safer on unanswerable ones. Split, each is visible.
+                for scope, keep in (("in-scope", False), ("out-of-scope", True)):
+                    a_s = [e.correctness.score for e in arm_evaluated[a_name]
+                           if e.result.is_out_of_scope == keep]
+                    b_s = [e.correctness.score for e in arm_evaluated[b_name]
+                           if e.result.is_out_of_scope == keep]
+                    d2, lo2, hi2 = paired_mean_difference(a_s, b_s)
+                    comparisons_split[f"{a_name} - {b_name} ({scope})"] = {
+                        a_name: round(float(np.mean(a_s)), 6),
+                        b_name: round(float(np.mean(b_s)), 6),
+                        "difference": round(d2, 6),
+                        "ci_low": round(lo2, 6), "ci_high": round(hi2, 6),
+                        "n": len(a_s)}
+                    print(f"      {scope:<13} {np.mean(a_s):.3f} vs {np.mean(b_s):.3f}   "
+                          f"{d2:+.3f} [{lo2:+.3f}, {hi2:+.3f}]  (n={len(a_s)})")
+
+    # --- The same questions, not the same averages ----------------------
+    # The headline faithfulness figures above are NOT comparable across
+    # arms: each is a mean over the questions THAT arm chose to answer. An
+    # arm that answers everything is averaged over its worst cases; an arm
+    # that refuses them is not. Restricting to questions both arms
+    # answered removes that, and is the only like-for-like comparison.
+    same_question = {}
+    if len(arm_list) >= 2:
+        print("""
+  THE SAME QUESTIONS, NOT THE SAME AVERAGES. The faithfulness column
+  above compares each arm on a different set of questions — the ones it
+  chose to answer. Restricted to questions BOTH arms answered:
+""")
+        for i, a_name in enumerate(arm_list):
+            for b_name in arm_list[i + 1:]:
+                a_by = {e.question_id: e for e in arm_evaluated[a_name]}
+                b_by = {e.question_id: e for e in arm_evaluated[b_name]}
+                shared = [q for q in a_by
+                          if not a_by[q].is_refusal and not b_by[q].is_refusal]
+                if not shared:
+                    continue
+                fa = [a_by[q].faithfulness.score for q in shared]
+                fb = [b_by[q].faithfulness.score for q in shared]
+                ca = [a_by[q].correctness.score for q in shared]
+                cb = [b_by[q].correctness.score for q in shared]
+                wa = float(np.mean([len(a_by[q].result.answer.split()) for q in shared]))
+                wb = float(np.mean([len(b_by[q].result.answer.split()) for q in shared]))
+                fd = paired_mean_difference(fa, fb)
+                cd = paired_mean_difference(ca, cb)
+                same_question[f"{a_name} - {b_name}"] = {
+                    "n_both_answered": len(shared),
+                    "faithfulness": {a_name: round(float(np.mean(fa)), 6),
+                                     b_name: round(float(np.mean(fb)), 6),
+                                     "difference": round(fd[0], 6),
+                                     "ci_low": round(fd[1], 6),
+                                     "ci_high": round(fd[2], 6)},
+                    "correctness": {a_name: round(float(np.mean(ca)), 6),
+                                    b_name: round(float(np.mean(cb)), 6),
+                                    "difference": round(cd[0], 6),
+                                    "ci_low": round(cd[1], 6),
+                                    "ci_high": round(cd[2], 6)},
+                    "mean_answer_words": {a_name: round(wa, 1),
+                                          b_name: round(wb, 1)},
+                }
+                print(f"    {a_name} vs {b_name}, n={len(shared)} questions both answered")
+                print(f"      faithfulness  {np.mean(fa):.3f} vs {np.mean(fb):.3f}   "
+                      f"difference {fd[0]:+.3f} [{fd[1]:+.3f}, {fd[2]:+.3f}]")
+                print(f"      correctness   {np.mean(ca):.3f} vs {np.mean(cb):.3f}   "
+                      f"difference {cd[0]:+.3f} [{cd[1]:+.3f}, {cd[2]:+.3f}]")
+                print(f"      answer length {wa:.0f} vs {wb:.0f} words\n")
+        print("""  Read the faithfulness line against the table above. Whatever gap
+  the headline column shows between a refusing arm and a non-refusing
+  one, this is how much of it survives on common ground. The rest was
+  composition: one arm was being averaged over questions the other
+  declined.
+""")
+
+    # --- What refusing costs, and what the safety number can bear -------
+    n_oos = sum(1 for q in golden if q["category"] == "out_of_scope")
+    refusal_detail = {}
+    print("  REFUSALS. Where each arm declines, and whether it had the evidence:\n")
+    for name, evs in arm_evaluated.items():
+        in_scope_refused = [e for e in evs
+                            if e.is_refusal and not e.result.is_out_of_scope]
+        full = sum(1 for e in in_scope_refused if (e.context_recall or 0) == 1)
+        part = sum(1 for e in in_scope_refused if 0 < (e.context_recall or 0) < 1)
+        none = sum(1 for e in in_scope_refused if (e.context_recall or 0) == 0)
+        by_category = {
+            c: {"refused": sum(1 for e in in_scope_refused if e.category == c),
+                "n": sum(1 for e in evs if e.category == c)}
+            for c in ("single_hop", "multi_hop", "ambiguous")}
+        oos_refused = sum(1 for e in evs
+                          if e.result.is_out_of_scope and e.is_refusal)
+        oos_answers = [e for e in evs
+                       if e.result.is_out_of_scope and not e.is_refusal]
+        oos_unsupported = sum(1 for e in oos_answers if e.faithfulness.score < 0.7)
+        lower = wilson_lower_bound(oos_refused, n_oos)
+        refusal_detail[name] = {
+            "in_scope_refused": len(in_scope_refused),
+            "in_scope_refused_with_full_evidence": full,
+            "in_scope_refused_with_partial_evidence": part,
+            "in_scope_refused_with_no_evidence": none,
+            "in_scope_refused_by_category": by_category,
+            "out_of_scope_refused": oos_refused,
+            "out_of_scope_n": n_oos,
+            "out_of_scope_refusal_wilson_lower_95": round(lower, 6),
+            "out_of_scope_answers_judged_unsupported": oos_unsupported,
+        }
+        cats_txt = ", ".join(f"{c} {v['refused']}/{v['n']}"
+                             for c, v in by_category.items())
+        print(f"    {name}")
+        print(f"      in-scope refused      : {len(in_scope_refused)}  "
+              f"(evidence fully retrieved for {full}, partly for {part}, not at all for {none})")
+        print(f"      by question type      : {cats_txt}")
+        bound = (f"  -> true rate at least {lower:.1%} (95% Wilson lower bound)"
+                 if oos_refused else "")
+        print(f"      out-of-scope refused  : {oos_refused} of {n_oos}{bound}")
+        if oos_answers:
+            print(f"      out-of-scope answered : {len(oos_answers)}, of which "
+                  f"{oos_unsupported} contain claims the judge found unsupported")
+        print()
+    print(f"""  Two readings that the raw counts invite and do not support.
+
+  A clean sweep on {n_oos} questions is not a clean system. The Wilson bound
+  is what {n_oos} questions can actually establish, and an underlying
+  failure rate of one in ten would still produce a perfect score on a
+  set this size about {0.9 ** n_oos:.0%} of the time.
+
+  And "answered" is not "hallucinated". An arm with no refusal
+  instruction never emits the canonical refusal, so every out-of-scope
+  reply counts as answered — including the ones that say the context
+  does not cover the question and then suggest something. The judged
+  count beside it is the stricter statement: answers containing at
+  least one claim the context does not support.
+""")
 
     # --- The planted contradiction -------------------------------------
     print("""
@@ -693,8 +847,8 @@ if arm_reports:
         stance = contradiction_stance(e.result.answer)
         mh011[name] = {
             "stance": stance,
-            "faithfulness": round(e.faithfulness.score, 4),
-            "correctness": (round(e.correctness.score, 4)
+            "faithfulness": round(e.faithfulness.score, 6),
+            "correctness": (round(e.correctness.score, 6)
                             if e.correctness is not None else None),
             "answer": e.result.answer,
         }
@@ -722,9 +876,9 @@ if arm_reports:
         "generation_model": os.getenv("GENERATION_MODEL", "gpt-4o-mini"),
         "judge": repr(judge),
         "judge_validation": {
-            "overall_accuracy": round(report.overall_accuracy, 4),
-            "faithfulness_accuracy": round(report.faithfulness_accuracy, 4),
-            "relevancy_accuracy": round(report.relevancy_accuracy, 4),
+            "overall_accuracy": round(report.overall_accuracy, 6),
+            "faithfulness_accuracy": round(report.faithfulness_accuracy, 6),
+            "relevancy_accuracy": round(report.relevancy_accuracy, 6),
             "n_cases": len(VALIDATION_CASES),
             "parse_failures": report.parse_failures,
             "trustworthy": bool(report.is_trustworthy),
@@ -734,12 +888,15 @@ if arm_reports:
         "runs": {name: report_to_dict(rep) for name, rep in all_reports.items()},
         "judge_parse_failures": failures,
         "correctness_by_category": {
-            name: {c: (None if v != v else round(v, 4)) for c, v in row.items()}
+            name: {c: (None if v != v else round(v, 6)) for c, v in row.items()}
             for name, row in by_cat_correct.items()},
         "paired_correctness": {
-            k: {"difference": round(d, 4), "ci_low": round(lo, 4),
-                "ci_high": round(hi, 4)}
+            k: {"difference": round(d, 6), "ci_low": round(lo, 6),
+                "ci_high": round(hi, 6)}
             for k, (d, lo, hi) in comparisons.items()},
+        "paired_correctness_by_scope": comparisons_split,
+        "same_question_comparison": same_question,
+        "refusals": refusal_detail,
         "mh011": mh011,
     }
     write_metrics(METRICS_DIR / "05_judged_arms.json", record)
@@ -831,10 +988,10 @@ print(f"""
 
 {arms_verdict}
 
-{'' if has_key else '''NOT YET MEASURED — no credential, so the LEXICAL judge ran and failed
-validation as designed. Section D's scores are harness output, not
-evidence. Add a key and re-run: the LLM judge should pass Section B,
-and only then do the answer-quality numbers mean anything.
+{'' if has_key else '''NOT MEASURED IN THIS RUN — no credential, so the LEXICAL judge ran and
+failed validation as designed. Section D's scores are harness output,
+not evidence. The answer-quality numbers that ARE evidence come from
+the credentialed run and are in reports/metrics/05_judged_arms.json.
 
 '''}STILL OPEN — carried into Phase 6:
 

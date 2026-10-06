@@ -18,6 +18,7 @@ from src.evaluation.judged_arms import (
     parse_arms,
     plan_judging,
     report_to_dict,
+    wilson_lower_bound,
     write_metrics,
 )
 from src.evaluation.rag_metrics import RunReport
@@ -154,11 +155,50 @@ def test_paired_difference_interval_brackets_the_estimate():
     assert lo < hi
 
 
+def test_paired_difference_prints_the_same_from_value_and_from_record():
+    """An exact tie in the third decimal must format identically whether
+    a notebook prints it or a record stores it and the memo quotes it.
+    7.5/120 is 0.0625; floating point lands just above."""
+    a = [1.0] * 15 + [0.5] * 105
+    b = [0.5] * 120
+    diff, lo, hi = paired_mean_difference(a, b)
+    assert diff == 0.0625
+    assert f"{diff:+.3f}" == f"{round(diff, 6):+.3f}"
+
+
 def test_paired_difference_rejects_misaligned_runs():
     with pytest.raises(ValueError):
         paired_mean_difference([1.0, 0.5], [1.0])
     with pytest.raises(ValueError):
         paired_mean_difference([], [])
+
+
+# ---------------------------------------------------------------------
+# Small-sample proportions
+# ---------------------------------------------------------------------
+def test_wilson_bound_on_a_clean_sweep_is_not_one():
+    """25 of 25 is the case that matters: the bound must say how much a
+    perfect small sample leaves open, and the normal approximation
+    cannot (it reports zero width at exactly 100%)."""
+    assert wilson_lower_bound(25, 25) == pytest.approx(0.8668, abs=1e-4)
+
+
+def test_wilson_bound_matches_known_values():
+    assert wilson_lower_bound(0, 10) == 0.0
+    assert wilson_lower_bound(50, 100) == pytest.approx(0.4038, abs=1e-4)
+    assert wilson_lower_bound(8, 10) == pytest.approx(0.4902, abs=1e-4)
+
+
+def test_wilson_bound_tightens_with_more_data():
+    assert wilson_lower_bound(250, 250) > wilson_lower_bound(25, 25)
+    assert wilson_lower_bound(25, 25) > wilson_lower_bound(5, 5)
+
+
+def test_wilson_bound_rejects_impossible_counts():
+    with pytest.raises(ValueError):
+        wilson_lower_bound(1, 0)
+    with pytest.raises(ValueError):
+        wilson_lower_bound(11, 10)
 
 
 # ---------------------------------------------------------------------
@@ -176,7 +216,11 @@ def _report(**overrides) -> RunReport:
 
 def test_report_to_dict_rounds_and_maps_nan_to_null():
     d = report_to_dict(_report())
-    assert d["faithfulness_answered"] == 0.9346
+    assert d["faithfulness_answered"] == 0.93456
+    # Quoting to three places from the record must agree with quoting to
+    # three places from the raw value — the reason six are kept.
+    raw = 0.03946          # at four places this stores 0.0395 and can print 0.040
+    assert f"{report_to_dict(_report(relevancy=raw))['relevancy']:.3f}" == f"{raw:.3f}"
     assert d["correctness"] is None           # NaN is not valid JSON
     assert list(d["failure_modes"]) == ["generation_failure", "ok"]
     json.dumps(d, allow_nan=False)            # must not raise

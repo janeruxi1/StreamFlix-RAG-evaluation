@@ -14,10 +14,13 @@ The work was framed by [`reports/scenario_brief.md`](reports/scenario_brief.md)
 — a stakeholder asking not for an assistant, but for a defensible answer to
 whether one is safe to deploy.
 
-> **Status: all 7 phases complete.** The retrieval half is measured and
-> recommended for deployment; the generation half is built, tested, and
-> explicitly **unmeasured** — no LLM arm has run. The decision memo says
-> which is which on every line rather than implying otherwise.
+> **Status: all 7 phases complete, and measured end to end.** The
+> recommendation is graded to the evidence: **ship** the retrieval layer,
+> **pilot** the cited generation layer with a person in the loop, and
+> **do not ship** the naive prompt. The cited arm refused 25 of 25
+> unanswerable questions with zero fabricated citations and 0.984
+> faithfulness — and 25 questions can only bound its true refusal rate
+> at 86.7%, which is why it is a pilot and not a launch.
 
 ---
 
@@ -145,6 +148,12 @@ comparison properly.
 Most of the phase is about not being fooled by a 48-row table. See the
 findings below.
 
+With `sentence-transformers` installed the sweep adds a BGE-small arm and
+becomes 64 configurations. CI does not download the model, so the 48-row
+sweep is what CI reproduces; the transformer comparison is checked
+against a committed record, [`reports/metrics/03_retrieval_arms.json`](reports/metrics/03_retrieval_arms.json).
+It changes the top of the table and not what ships — see finding 7.
+
 ### Phase 4 — Generation, grounding & refusal ✅
 
 Five prompt variants forming a ladder — `naive` → `grounded` →
@@ -196,6 +205,26 @@ alongside every answer, so a wrong answer with zero retrieval recall is
 identifiable as an upstream failure rather than a hallucination — the
 distinction Phase 3 flagged and Phase 6 depends on.
 
+**The ladder, measured** on `gpt-4o-mini` over all 120 questions:
+
+| Rung | Refuses out-of-scope | Answers in-scope | Refusal F1 | Fabricated citations | Mean answer |
+|---|---:|---:|---:|---:|---:|
+| extractive baseline | 56.0% | 62.1% | 0.589 | 0 | 25 words |
+| `naive` | 0.0% | 100.0% | 0.000 | not applicable | 67 words |
+| `grounded` | 0.0% | 100.0% | 0.000 | not applicable | 36 words |
+| `grounded_refusal` | 100.0% | 74.7% | 0.855 | not applicable | 25 words |
+| `cited` | 100.0% | 80.0% | 0.889 | 0 | 38 words |
+| `strict` | 100.0% | 73.7% | 0.848 | 0 | 43 words |
+
+Three things in that table are worth more than the ranking. Telling the
+model to use only the context (`grounded`) produced **no refusals at
+all**; it took explicit permission to refuse. Asking for citations did
+not cost answers: `cited` answered 80.0% against 74.7% for the plain
+refusal rung, a five-question gap on 95 and so not a ranking. And the
+most elaborate prompt (`strict`) is no safer than `cited`, both refusing
+25 of 25, while answering six fewer questions. Each rung adds one
+mechanism, so each of those is attributable to it.
+
 ### Phase 5 — The evaluation harness ✅
 
 Four metrics in the RAGAS tradition — context precision, context recall,
@@ -235,6 +264,23 @@ it contradicts, and it rates refusals as maximally unfaithful because they
 share no vocabulary. Neither is fixable by tuning a threshold; they're
 what "semantic" means. That's the argument for paying for an LLM judge
 made by measurement rather than assertion.
+
+**With a key, the judge is `gpt-4o` and it passes at 100%** on the same
+9 cases. Only then are the LLM arms judged — if the judge fails its gate
+the notebook stops before spending on scores it could not trust.
+
+| Arm | Faithfulness (answered) | Correctness (all 120) | Answered |
+|---|---:|---:|---:|
+| extractive baseline | 0.810 | 0.268 | 70 |
+| `naive` | 0.764 | 0.795 | 120 |
+| `cited` | 0.984 | 0.733 | 76 |
+
+That table invites a wrong reading, and the notebook is built to stop
+it. `cited` looks far more faithful than `naive`, but each arm is
+averaged over the questions *it* chose to answer. On the 76 questions
+both answered, faithfulness is 0.984 against 0.970 — a difference of
+−0.015 [−0.040, +0.010]. The gap in the table is `naive` answering 25
+unanswerable questions. See finding 8.
 
 **Context precision must be read against its ceiling.** The raw 0.211
 looks alarming until you notice the ceiling is 0.441, not 1.0 — articles
@@ -305,29 +351,57 @@ in this data. So agreement here is evidence the *data* lacks the
 separating feature, not evidence either rater is right. Both are still
 lexical, and both still score contradictions as faithful.
 
+**Audited with a key, `gpt-4o` behaves differently, and the probes turn
+out to be part of the result.** The longer answer scored lower on 2 of 3
+length probes (−0.222 on average). Read alone that is a length bias. The
+judge's stated reasons say otherwise: it marked specific added sentences
+as unsupported — "up to four devices in your household can watch
+different titles", "acting promptly is advisable" — and it is right that
+the context states neither. The probes assumed their padding asserted
+nothing, which held for a judge that counts words and not for one that
+counts claims.
+
+So the notebook tests the length reading against real answers. On the
+same 76 questions, `naive` writes 28 more words than `cited`. A per-word
+penalty of the size the probes imply predicts a faithfulness gap of
+−0.171; the data shows −0.015 [−0.040, +0.010]. The judge is strict about
+elaboration and does not charge by the word.
+
+Agreement between `gpt-4o` and the lexical judge is kappa −0.465, worse
+than chance. That counts against the lexical judge, which failed its
+gate: 15 of the 26 disagreements are refusals it scores as unfaithful.
+It does not certify `gpt-4o`, which would need a second rater that also
+passes — and this project has none.
+
 ### Phase 7 — Decision memo, and keeping it honest ✅
 
 The deliverable is [`reports/decision_memo.md`](reports/decision_memo.md).
-**Recommendation: ship the retrieval layer, hold the generation layer.**
+**Recommendation: ship the retrieval layer, pilot the `cited` generation
+layer with a support agent in the loop, and do not ship the `naive`
+prompt.**
 
-That split is the recommendation, not a hedge. Retrieval was measured
-across 48 configurations with paired inference, multiplicity correction
-and held-out selection. Generation has a complete harness pointed at it
-and **zero readings** — no LLM arm has run. Shipping both on the strength
-of the first would borrow credibility from the measured half to cover the
-unmeasured half, which is the specific mistake this project exists to
-avoid.
+The three parts rest on different amounts of evidence and are graded to
+match. Retrieval was measured across the full sweep with paired
+inference, multiplicity correction and held-out selection. `cited`
+generation is measured and good — and held at "pilot" by sample size, not
+by its scores: 25 of 25 refusals supports a true rate of at least 86.7%
+and cannot exclude about one unanswerable question in eight being
+answered.
 
-**Failure modes are ranked by cost to a customer, not frequency.**
-Answering an unanswerable billing question (11 of 25 out-of-scope) is
-rarer than over-refusing (34 in-scope) and far more expensive. A
-frequency-ordered list inverts the priority.
+**Failure modes are ranked by cost to a customer, not frequency.** The
+one ranked first is a single question. Two help articles state different
+refund windows; `naive` asserts one of them, `cited` names neither, and
+no judged arm says the sources disagree. The judge scored both answers
+0.80 against a reference that names the conflict, so it is also the one
+failure the instrument under-reports.
 
 **Every memo number is verified by `notebooks/07_decision_memo.py`**,
-which recomputes all 14 claims against live code and exits non-zero on
-drift. CI runs it. Numbers in a markdown file rot silently, and a stale
-memo is worse than none because it carries the authority of having been
-checked once.
+which checks 53 claims and exits non-zero on drift. CI runs it. The check
+is of two kinds and the notebook says which applies to each number: 11
+are recomputed live, and 42 that needed an API key or a model download
+are checked against the measured records in `reports/metrics/`. CI has no
+key by design, so it cannot re-measure those; it can confirm the memo
+says what was measured.
 
 ---
 
@@ -468,6 +542,53 @@ no oracle, couldn't tell them apart, and guessed the harder one. What it
 got right is the consequence: at depth 5 the generator still receives
 five confident, on-topic, wrong chunks.
 
+Findings 3 to 6 quote the 48-configuration sweep that runs without a
+model download, which is what CI reproduces. Findings 7 to 9 come from
+the credentialed run and are checked against `reports/metrics/`.
+
+**7. The transformer arm tops the table and does not change what ships.**
+
+With BGE-small added, the best configuration is `whole_article` at depth
+15: 0.967 recall, against 0.882 for the shipping configuration at 4.4x
+less context. That gap is +0.085 [+0.039, +0.135], and it is real. The
+context budget is a trade with a measured price.
+
+On the *same* chunks, depth and cost, the transformer scores 0.907
+against BM25's 0.882: +0.025 [−0.039, +0.090], 22 of 95 questions
+differing. Against the declared 0.05 margin that is inconclusive —
+neither better nor the same. Given an unresolved difference, the arm
+with no model dependency ships.
+
+| Category | BM25 | Transformer |
+|---|---:|---:|
+| `single_hop` | 0.983 | 0.933 |
+| `multi_hop` | 0.817 | 0.950 |
+| `ambiguous` | 0.561 | 0.744 |
+
+The aggregate hides that the two fail on different questions, which is
+an argument for combining them and not for swapping one for the other.
+
+**8. A faithfulness gap that was mostly composition.**
+
+`cited` scores 0.984 faithfulness and `naive` 0.764. On the 76 questions
+both answered, it is 0.984 against 0.970. Almost the whole gap is `naive`
+answering the 25 unanswerable questions, where 23 of its answers contain
+claims the judge found unsupported.
+
+The same split explains correctness. `naive` is more correct on
+answerable questions by +0.160 [+0.102, +0.219] and less correct on
+unanswerable ones by −0.308 [−0.496, −0.116]. Overall the two cancel to
++0.062 [−0.007, +0.133], so a single number reports "no difference"
+between two arms that differ sharply in opposite directions.
+
+**9. Twenty-five out of twenty-five is a bound, not a guarantee.**
+
+A system that answered one unanswerable question in ten would still
+score a clean sweep on 25 questions about 7% of the time. The Wilson
+lower bound on `cited`'s refusal rate is 86.7%. The memo recommends a
+pilot on that number and says roughly 300 clean out-of-scope questions
+would be needed to put the bound near 99%.
+
 ---
 
 ## Roadmap
@@ -519,7 +640,7 @@ python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
 
-pytest tests/ -q                              # 356 tests
+pytest tests/ -q                              # 362 tests
 ```
 
 Token counts throughout are **estimates** (words × 1.3), computed the
@@ -606,7 +727,7 @@ src/
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
                06 judge audit · 07 decision memo + verification
-tests/         356 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         362 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       decision_memo.md, PROJECT_SUMMARY.md, scenario_brief.md,
