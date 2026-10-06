@@ -169,7 +169,26 @@ VALIDATION_CASES: list[ValidationCase] = [
 ]
 
 HIGH_THRESHOLD = 0.7      # what counts as "high" for a 0-1 judgement
-LOW_THRESHOLD = 0.5       # what counts as "low"
+LOW_THRESHOLD = 0.5       # what counts as "low" — INCLUSIVE, see below
+
+# Why "low" is `<=` and not `<`.
+#
+# Faithfulness is a claim ratio: supported claims over total claims.
+# Three of the four cases that should score low are two-claim answers
+# with exactly one bad claim, so a judge that reads them CORRECTLY
+# returns 1/2 = 0.5 — the note on val-fabricated-1 even says so.
+#
+# With a strict `<`, that correct verdict sat exactly on the boundary
+# and was marked wrong. A flawless claim-counting judge would have
+# scored 15/18 = 83% on this suite, three points above the trust
+# threshold, and one unrelated slip would have failed the gate and
+# reported a sound judge as untrustworthy. The suite's own "perfect
+# judge passes" test could not see it, because its oracle answered 1.0
+# or 0.0 and never produced the value a real judge produces.
+#
+# The gate had never been run against an LLM judge, so nothing had
+# tripped it yet. An instrument that has only ever measured the thing it
+# was built to fail has not been calibrated.
 
 
 @dataclass(frozen=True)
@@ -182,13 +201,13 @@ class CaseResult:
     def faithfulness_correct(self) -> bool:
         if self.case.expect_faithful_high:
             return self.faithfulness.score >= HIGH_THRESHOLD
-        return self.faithfulness.score < LOW_THRESHOLD
+        return self.faithfulness.score <= LOW_THRESHOLD
 
     @property
     def relevancy_correct(self) -> bool:
         if self.case.expect_relevant_high:
             return self.relevancy.score >= HIGH_THRESHOLD
-        return self.relevancy.score < LOW_THRESHOLD
+        return self.relevancy.score <= LOW_THRESHOLD
 
 
 @dataclass(frozen=True)

@@ -32,7 +32,8 @@ Sections
   C. Context metrics — exact, and read against their ceiling
   D. Judged answer quality
   E. Failure attribution — retrieval or generation
-  F. Verdict and handoff to Phase 6
+  F. The LLM arms, judged (needs a credential and a judge that passed B)
+  G. Verdict and handoff to Phase 6
 """
 import importlib.util
 import os
@@ -48,6 +49,15 @@ import pandas as pd
 from src.corpus.build import load_corpus, load_golden_set
 from src.evaluation.judge import LexicalJudge, get_judge
 from src.evaluation.judge_validation import VALIDATION_CASES, validate_judge
+from src.evaluation.judged_arms import (
+    contradiction_stance,
+    estimate_usd,
+    paired_mean_difference,
+    parse_arms,
+    plan_judging,
+    report_to_dict,
+    write_metrics,
+)
 from src.evaluation.rag_metrics import (
     aggregate_run,
     attribution_table,
@@ -55,13 +65,14 @@ from src.evaluation.rag_metrics import (
     evaluate_run,
 )
 from src.generation.extractive import ExtractiveAnswerer
-from src.generation.pipeline import RAGPipeline
+from src.generation.pipeline import LLMAnswerer, RAGPipeline
 from src.generation.prompts import VARIANTS
 from src.retrieval.chunking import STRATEGIES
 from src.retrieval.retrievers import BM25Retriever
 
 FIG_DIR = Path("reports/figures")
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+METRICS_DIR = Path("reports/metrics")
 
 STRATEGY = "markdown_section"      # locked in by Phase 3
 DEPTH = 15
@@ -100,10 +111,17 @@ if has_key:
 else:
     judge = LexicalJudge()
 
-n_val = len(VALIDATION_CASES) * 2
 n_refs = sum(1 for q in golden if q.get("reference_answer"))
-n_judge = len(golden) * 2 + n_refs
 judge_model = os.getenv("JUDGE_MODEL", "gpt-4o")
+
+# Which LLM arms Section F judges, and what the whole run costs. Worked
+# out here, before the first call, so a run is never started blind.
+arm_names = parse_arms(os.getenv("JUDGE_ARMS"), VARIANTS)
+plan = plan_judging(len(golden), n_refs, len(VALIDATION_CASES), len(arm_names))
+max_calls = int(os.getenv("MAX_LLM_CALLS_PER_RUN", "2000"))
+# Generation is normally served from the Phase 4 cache; if the prompts
+# changed it is not, and those calls share the same ceiling.
+worst_case_calls = plan.total_calls + len(golden) * len(arm_names)
 
 print(f"""
   Retrieval        : {STRATEGY} + BM25 @ depth {DEPTH}
@@ -117,21 +135,34 @@ if has_key:
     # the EXPENSIVE model — the whole point of the asymmetry — so this
     # notebook costs roughly eight times what the generation notebook
     # does despite making fewer calls.
-    in_usd = (n_val + n_judge) * 800 / 1e6 * 2.50
-    out_usd = (n_val + n_judge) * 90 / 1e6 * 10.00
-    print(f"""  Judge calls and cost, at {judge_model} list pricing:
+    arms_label = ", ".join(arm_names)
+    print(f"""  Judge calls and cost, at {judge_model} list pricing. An estimate from
+  average prompt sizes, not a quote:
 
-    validation suite (Section B) : {n_val:>4} calls   ~${n_val * 800 / 1e6 * 2.50 + n_val * 90 / 1e6 * 10:.2f}
-    golden set (Sections C-E)    : {n_judge:>4} calls   ~${n_judge * 800 / 1e6 * 2.50 + n_judge * 90 / 1e6 * 10:.2f}
-    total                        : {n_val + n_judge:>4} calls   ~${in_usd + out_usd:.2f}
+    validation suite (Section B)        : {plan.validation_calls:>5} calls   ~${estimate_usd(plan.validation_calls):.2f}
+    extractive baseline (Sections C-E)  : {plan.baseline_calls:>5} calls   ~${estimate_usd(plan.baseline_calls):.2f}
+    LLM arms (Section F): {arms_label:<14}: {plan.arm_calls:>5} calls   ~${estimate_usd(plan.arm_calls):.2f}
+    total                               : {plan.total_calls:>5} calls   ~${plan.total_usd:.2f}
 
-  Responses are cached on disk, so re-running costs nothing.
+  Generating the LLM answers is served from the Phase 4 cache when the
+  prompts are unchanged, and costs cents on the generation model when
+  they are not. Every response is cached on disk, so re-running this
+  notebook costs nothing.
 
-  Note the ordering: Section B runs first and costs cents. If the judge
-  fails validation there, stop — the remaining ~${n_judge * 800 / 1e6 * 2.50 + n_judge * 90 / 1e6 * 10:.2f} would buy numbers
-  from an instrument already known to be miscalibrated. The gate is
-  scientific first and economical second, but it is both.
+  The ordering is the cost control. Section B runs first and costs
+  cents. If the judge fails validation there, Section F does not run:
+  the ~${estimate_usd(plan.arm_calls):.2f} it would cost would buy numbers from an instrument already
+  known to be miscalibrated. The gate is scientific first and economical
+  second, but it is both.
 """)
+    if max_calls > 0 and worst_case_calls > max_calls:
+        raise SystemExit(
+            f"This run needs up to {worst_case_calls} LLM calls and "
+            f"MAX_LLM_CALLS_PER_RUN is {max_calls}. The ceiling raises "
+            f"mid-loop, after the first arms are already paid for, so the "
+            f"run stops here instead. Raise MAX_LLM_CALLS_PER_RUN in .env "
+            f"or judge fewer arms with JUDGE_ARMS."
+        )
 
 if not has_key:
     print(f"""  LLM judge unavailable.
@@ -219,6 +250,13 @@ if fails:
         print(f"    [{r.case.case_id}] {r.case.kind}")
         print(f"      faithfulness {r.faithfulness.score:.2f} (want {want_f})"
               f"   relevancy {r.relevancy.score:.2f} (want {want_r})")
+        if r.faithfulness.n_claims is not None:
+            # The ratio alone hides WHY a case failed: a judge that
+            # found the bad claim but split the answer into more claims
+            # than expected lands above the threshold for a different
+            # reason than one that missed the bad claim entirely.
+            print(f"      claims supported {r.faithfulness.n_supported}"
+                  f" of {r.faithfulness.n_claims}")
         if r.case.note:
             print(f"      {r.case.note}")
 
@@ -512,8 +550,246 @@ print(f"  Saved -> {FIG_DIR}/05_evaluation.png")
 
 
 # =====================================================================
-# F. Verdict
+# F. The LLM arms, judged
 # =====================================================================
+print("\n" + "=" * 78)
+print("F. THE LLM ARMS, JUDGED")
+print("=" * 78)
+print(f"""
+Everything above scored the extractive baseline. That was the right
+subject for building the harness — free, deterministic, failure modes
+known in advance — and the wrong subject for a deployment decision,
+because nobody proposes to ship the baseline.
+
+An earlier version of this notebook stopped here even with a credential
+present: the key swapped the lexical judge for an LLM judge and then
+aimed it at the same extractive answers. The memo meanwhile described
+the generation layer as one judge run away from being measured. That run
+would have paid a model to grade a copier and left every LLM answer
+unjudged, and nothing would have failed.
+
+So this section does what the write-up always said was being done: it
+runs the judge over LLM answers.
+
+  Arms selected : {', '.join('llm_' + a for a in arm_names)}
+  (set JUDGE_ARMS=all, or a comma-separated list, to change this)
+""")
+
+arm_evaluated: dict[str, list] = {}
+arm_reports: dict[str, object] = {}
+
+if not has_key:
+    print("""  NOT MEASURED — no credential, so no LLM arm ran and none was judged.
+  The table below would hold one row per arm.
+""")
+elif not report.is_trustworthy:
+    print(f""">>> NOT RUN — the judge failed Section B at {report.overall_accuracy:.0%}.
+
+  This is the gate doing its job. Judging the LLM arms now would cost
+  ~${estimate_usd(plan.arm_calls):.2f} and produce numbers from an instrument already shown to
+  be miscalibrated. They would look exactly like findings.
+
+  Fix the judge first (a stronger JUDGE_MODEL, or a revised prompt
+  re-validated against Section B), then re-run.
+""")
+else:
+    for name in arm_names:
+        answerer = LLMAnswerer(provider, VARIANTS[name])
+        print(f"  {answerer.name}: generating over {len(golden)} questions ...",
+              flush=True)
+        arm_results = RAGPipeline(retriever, answerer, depth=DEPTH).run(
+            golden, progress_every=40)
+        print(f"  {answerer.name}: judging ...", flush=True)
+        arm_evaluated[answerer.name] = evaluate_run(
+            arm_results, judge=judge, references=references, progress_every=40)
+        arm_reports[answerer.name] = aggregate_run(arm_evaluated[answerer.name])
+
+if arm_reports:
+    all_evaluated = {report_run.answerer: evaluated, **arm_evaluated}
+    all_reports = {report_run.answerer: report_run, **arm_reports}
+
+    def _parse_failures(evs) -> int:
+        return sum(1 for e in evs
+                   for j in (e.faithfulness, e.relevancy, e.correctness)
+                   if j is not None and not j.parsed_ok)
+
+    print(f"\n  {'answerer':<22}{'answered':>9}{'faithful':>10}{'relevant':>10}"
+          f"{'correct':>9}{'gen fail':>10}{'ret fail':>10}{'ans OOS':>9}")
+    print("  " + "-" * 89)
+    for name, rep in all_reports.items():
+        fm = rep.failure_modes
+        print(f"  {name:<22}{rep.n_answered:>9}{rep.faithfulness:>10.3f}"
+              f"{rep.relevancy:>10.3f}{rep.correctness:>9.3f}"
+              f"{fm.get('generation_failure', 0):>10}"
+              f"{fm.get('retrieval_failure', 0):>10}"
+              f"{fm.get('answered_oos', 0):>9}")
+
+    print("""
+  How to read the columns:
+
+    faithful   answered questions only (see Section D for why)
+    correct    agreement with the reference answer, over ALL questions,
+               so it includes the out-of-scope ones — where the reference
+               says the corpus is silent and the right answer is a refusal
+    gen fail   unfaithful although the evidence was retrieved
+    ret fail   unfaithful and the evidence was NOT retrieved — an
+               upstream failure that looks like a hallucination
+    ans OOS    out-of-scope questions answered instead of refused
+""")
+
+    failures = {name: _parse_failures(evs) for name, evs in all_evaluated.items()}
+    print("  Judge replies that could not be parsed (each is scored 0.0, so a")
+    print("  large count here means the scores above are deflated, not low):\n")
+    for name, n_bad in failures.items():
+        print(f"    {name:<22} {n_bad:>4} of {len(all_evaluated[name]) * 3}")
+
+    # --- By category ---------------------------------------------------
+    cats_all = ["single_hop", "multi_hop", "ambiguous", "out_of_scope"]
+    print("\n  Correctness by question type:\n")
+    print(f"  {'answerer':<22}" + "".join(f"{c:>14}" for c in cats_all))
+    print("  " + "-" * (22 + 14 * len(cats_all)))
+    by_cat_correct: dict[str, dict[str, float]] = {}
+    for name, evs in all_evaluated.items():
+        row = {}
+        for c in cats_all:
+            vals = [e.correctness.score for e in evs
+                    if e.category == c and e.correctness is not None]
+            row[c] = float(np.mean(vals)) if vals else float("nan")
+        by_cat_correct[name] = row
+        print(f"  {name:<22}" + "".join(f"{row[c]:>14.3f}" for c in cats_all))
+
+    # --- Paired comparison ---------------------------------------------
+    comparisons = {}
+    arm_list = list(arm_evaluated)
+    if len(arm_list) >= 2:
+        print("""
+  Paired differences in correctness. Both arms answer the same 120
+  questions, so the comparison is per question — the shared difficulty
+  cancels instead of widening the interval.
+""")
+        for i, a_name in enumerate(arm_list):
+            for b_name in arm_list[i + 1:]:
+                a_sc = [e.correctness.score for e in arm_evaluated[a_name]]
+                b_sc = [e.correctness.score for e in arm_evaluated[b_name]]
+                diff, lo, hi = paired_mean_difference(a_sc, b_sc)
+                comparisons[f"{a_name} - {b_name}"] = (diff, lo, hi)
+                verdict = ("interval excludes zero" if lo > 0 or hi < 0
+                           else "interval includes zero — not distinguishable")
+                print(f"    {a_name} - {b_name}: {diff:+.3f} "
+                      f"[{lo:+.3f}, {hi:+.3f}]  {verdict}")
+
+    # --- The planted contradiction -------------------------------------
+    print("""
+  THE PLANTED CONTRADICTION (mh-011). Two retrieved articles state
+  different refund windows: 14 days and 30 days. Phases 3 and 4 both
+  deferred the question to here: does any arm surface the conflict, or
+  does it assert one figure as though the other source did not exist?
+""")
+    mh011 = {}
+    for name, evs in all_evaluated.items():
+        e = next((x for x in evs if x.question_id == "mh-011"), None)
+        if e is None:
+            continue
+        stance = contradiction_stance(e.result.answer)
+        mh011[name] = {
+            "stance": stance,
+            "faithfulness": round(e.faithfulness.score, 4),
+            "correctness": (round(e.correctness.score, 4)
+                            if e.correctness is not None else None),
+            "answer": e.result.answer,
+        }
+        corr = (f"{e.correctness.score:.2f}" if e.correctness is not None
+                else "n/a")
+        print(f"    {name}")
+        print(f"      stance       : {stance}")
+        print(f"      faithfulness : {e.faithfulness.score:.2f}   "
+              f"correctness vs reference : {corr}")
+        print(f"      answer       : {e.result.answer[:420]}\n")
+
+    print("""  `states_both` means both figures appear, which is necessary for
+  surfacing the conflict and not sufficient: an answer can list two
+  windows without saying they disagree. The correctness score is against
+  a reference answer that names the conflict explicitly, so the two
+  columns are read together. Note what faithfulness CANNOT show here: an
+  answer asserting "30 days" is fully faithful, because one retrieved
+  article does say that. An answer can be fully faithful to one of two
+  contradictory sources and still mislead the customer, and only this
+  check and the reference comparison can see it.
+""")
+
+    # --- Record ---------------------------------------------------------
+    record = {
+        "generation_model": os.getenv("GENERATION_MODEL", "gpt-4o-mini"),
+        "judge": repr(judge),
+        "judge_validation": {
+            "overall_accuracy": round(report.overall_accuracy, 4),
+            "faithfulness_accuracy": round(report.faithfulness_accuracy, 4),
+            "relevancy_accuracy": round(report.relevancy_accuracy, 4),
+            "n_cases": len(VALIDATION_CASES),
+            "parse_failures": report.parse_failures,
+            "trustworthy": bool(report.is_trustworthy),
+        },
+        "retrieval": {"strategy": STRATEGY, "retriever": "bm25", "depth": DEPTH},
+        "n_questions": len(golden),
+        "runs": {name: report_to_dict(rep) for name, rep in all_reports.items()},
+        "judge_parse_failures": failures,
+        "correctness_by_category": {
+            name: {c: (None if v != v else round(v, 4)) for c, v in row.items()}
+            for name, row in by_cat_correct.items()},
+        "paired_correctness": {
+            k: {"difference": round(d, 4), "ci_low": round(lo, 4),
+                "ci_high": round(hi, 4)}
+            for k, (d, lo, hi) in comparisons.items()},
+        "mh011": mh011,
+    }
+    write_metrics(METRICS_DIR / "05_judged_arms.json", record)
+    print(f"  Saved -> {METRICS_DIR}/05_judged_arms.json")
+    print("""
+  That file is the measured record. CI has no key by design and cannot
+  recompute these numbers, so the memo is verified against this record
+  rather than against prose. It is written only by a run that reached
+  this point: a keyless run, or one whose judge failed the gate, leaves
+  it untouched.
+""")
+
+
+# =====================================================================
+# G. Verdict
+# =====================================================================
+if arm_reports:
+    _lines = "\n".join(
+        f"   {name:<14} faithfulness {rep.faithfulness:.3f} over {rep.n_answered} answered, "
+        f"correctness {rep.correctness:.3f},\n"
+        f"   {'':<14} {rep.failure_modes.get('answered_oos', 0)} of "
+        f"{sum(1 for q in golden if q['category'] == 'out_of_scope')} out-of-scope answered"
+        for name, rep in arm_reports.items())
+    arms_verdict = f"""6. THE LLM ARMS ARE JUDGED, BY A JUDGE THAT PASSED ITS GATE.
+{_lines}
+   These are the first answer-quality readings in the project. They
+   carry the judge's measured error rate from Section B, and Phase 6
+   still has to check that judge for bias before any difference
+   BETWEEN arms is believed."""
+    mh011_item = """  - The contradiction case (mh-011) is read in Section F: what each
+    judged arm does with two sources that disagree. Phase 6 should
+    check whether the judge itself noticed."""
+elif has_key:
+    arms_verdict = f"""6. THE LLM ARMS WERE NOT JUDGED — THE GATE HELD.
+   The judge scored {report.overall_accuracy:.0%} in Section B, below the trust threshold, so
+   Section F did not run. No answer-quality claim about the LLM arms
+   is made anywhere in this notebook."""
+    mh011_item = f"""  - The contradiction case (mh-011). Both refund windows are retrieved
+    at depth {DEPTH}. Whether any prompt variant FLAGS the conflict
+    rather than silently picking one is still unanswered, and needs a
+    judge that passes Section B."""
+else:
+    arms_verdict = """6. THE LLM ARMS ARE NOT JUDGED HERE.
+   No credential, so Section F did not run. Everything scored above is
+   the extractive baseline, which nobody proposes to ship."""
+    mh011_item = f"""  - The contradiction case (mh-011). Both refund windows are retrieved
+    at depth {DEPTH}. Whether any prompt variant FLAGS the conflict
+    rather than silently picking one is answered by Section F, which
+    needs a credential and a judge that passed Section B."""
+
 print("\n" + "=" * 78)
 print("PHASE 5 VERDICT")
 print("=" * 78)
@@ -553,6 +829,8 @@ print(f"""
    them ({report_run.faithfulness_all:.3f}). Refusals are vacuously faithful, so including
    them lets a system that answers nothing report a perfect score.
 
+{arms_verdict}
+
 {'' if has_key else '''NOT YET MEASURED — no credential, so the LEXICAL judge ran and failed
 validation as designed. Section D's scores are harness output, not
 evidence. Add a key and re-run: the LLM judge should pass Section B,
@@ -566,10 +844,7 @@ and only then do the answer-quality numbers mean anything.
   - Inter-judge agreement. One judge's opinion is one opinion; two
     judges disagreeing on a question is a signal that question is
     genuinely ambiguous.
-  - The contradiction case (mh-011). Both refund windows are retrieved
-    at depth {DEPTH}. Whether any prompt variant FLAGS the conflict rather
-    than silently picking one is the question Phase 6 should answer,
-    and it needs a judge that passed Section B.
+{mh011_item}
 
 HANDOFF TO PHASE 6: LLM-as-judge deep dive — judge bias measurement,
 inter-judge agreement, and qualitative failure analysis on the cases the

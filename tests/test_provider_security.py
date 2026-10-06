@@ -249,7 +249,10 @@ def test_check_never_prints_the_raw_credential(monkeypatch, capsys):
     """The report is meant to be safe to screenshot and paste."""
     from src.llm import provider as prov
 
-    secret = "sk-" + "z" * 40
+    # Key-shaped on purpose, and not a key. The pragma tells the secret
+    # scanner so: without it CI's own scan flags this line and the build
+    # fails on the test that proves credentials are never printed.
+    secret = "sk-" + "z" * 40  # pragma: allowlist secret
     monkeypatch.setattr(prov, "_load_dotenv_if_present", lambda: None)
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", secret)

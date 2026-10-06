@@ -63,7 +63,7 @@ that confidently answers one is worse than one that says "I don't know."
 | Phase | Built | Key finding |
 |---|---|---|
 | 1 | 45-article corpus + 120-question golden set | BM25 gets **93.3%** recall@5 on single-hop — the floor is high, so per-category reporting is mandatory |
-| 2 | 5 chunking strategies, 2 embedding backends, vector store | `fixed_token_256` was a silent no-op, byte-identical to `whole_article` |
+| 2 | 5 chunking strategies, 2 embedding backends, vector store | `fixed_token_256` was a silent no-op: the same words as `whole_article`, one chunk per article |
 | 3 | 48-configuration bake-off | recall@k is monotone in k, so **no quality metric can select depth** — it's a cost decision |
 | 4 | 5 prompt variants + extractive baseline + refusal detection | safety and helpfulness move against each other; every variant scored as a *pair* |
 | 5 | Evaluation harness with a validated judge | context metrics are **computed, not judged** — ground truth exists, so using an LLM would be strictly worse |
@@ -121,6 +121,25 @@ the work.
   INCONCLUSIVE, not equivalent.
 - **Phase 5 review:** the judge was being shown different context than the
   generator, which penalised exactly the prompt variants that cite.
+- **First credentialed run:** chunk boundaries depended on whether
+  `tiktoken` was installed — 202 chunks in CI, 209 on a machine that had
+  run `pip install -r requirements.txt`. Every downstream number moved
+  with an optional package while the memo's verification passed in CI.
+  Token counts that decide anything are now a deterministic estimate.
+- **First credentialed run:** with a key, Phase 5 pointed the LLM judge at
+  the extractive baseline's answers and never at an LLM's. The memo
+  described the generation layer as one judge run from being measured;
+  that run would have graded a copier.
+- **First credentialed run:** the judge-validation gate marked a correct
+  verdict wrong. A two-claim answer with one fabricated claim scores
+  exactly 0.5, and "low" was a strict `< 0.5`, so a flawless judge would
+  have scored 83% — one slip from failing a gate it should pass.
+- **First credentialed run:** the fabricated-citation count used
+  `precision or 1.0`, which turned a precision of 0.0 — every citation
+  invented — into a perfect score.
+- **First credentialed run:** the notebook sync gate could not pass in CI.
+  Cell ids were random locally, absent in CI, and rewritten by the
+  commit hook, so three tools disagreed about every notebook.
 - **Phase 6 review:** Cohen's kappa returned 1.0 where it is mathematically
   undefined.
 
@@ -133,8 +152,8 @@ a complete harness and zero readings. The generation layer is built,
 tested, and unvalidated — and the memo says so on every line rather than
 implying otherwise.
 
-Closing that gap costs **~$1.25** in API calls and one run of notebooks
-04, 05 and 06.
+Closing that gap costs **about $3** in judge calls plus cents of
+generation, in one run of `python scripts/run_llm_eval.py`.
 
 ---
 
@@ -151,7 +170,7 @@ notebooks/     01 corpus · 02 chunking · 03 bake-off · 04 generation
                05 evaluation · 06 judge audit · 07 decision memo
 reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
 scripts/       build_notebooks.py, check_repo.py
-tests/         319 tests
+tests/         356 tests
 ```
 
 Everything runs with **no API key**: CI installs no LLM client and fails

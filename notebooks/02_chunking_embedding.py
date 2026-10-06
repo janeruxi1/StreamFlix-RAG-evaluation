@@ -117,18 +117,35 @@ print("\n" + profile_df.to_string(index=False))
 
 # --- Degenerate-arm check --------------------------------------------
 whole = chunk_sets["whole_article"]
+
+
+def _same_words(a, b) -> bool:
+    """Same articles, same words in the same order.
+
+    Compared on words, not bytes: the fixed-token chunker rejoins words
+    with single spaces, so its text differs from the article body in
+    whitespace alone. Every retriever here tokenises on words, so that
+    difference cannot change a retrieval result. An equal chunk COUNT is
+    not enough to call two arms the same — it would also match a
+    strategy that split every article differently into one chunk each.
+    """
+    return len(a) == len(b) and all(
+        x.article_id == y.article_id and x.text.split() == y.text.split()
+        for x, y in zip(a, b))
+
+
 degenerate = [
     name for name, chunks in chunk_sets.items()
-    if name != "whole_article" and len(chunks) == len(whole)
+    if name != "whole_article" and _same_words(chunks, whole)
 ]
 print(f"""
 >>> FINDING — one arm collapsed into another.
 
-{', '.join(degenerate)} produced exactly {len(whole)} chunks: one per article,
-identical to whole_article. The reason is arithmetic — the longest
-article is {max(c.n_tokens for c in whole)} tokens, so a 256-token window never has anything
-to split. The chunker ran, did nothing, and would have been reported
-in Phase 3 as a distinct configuration.
+{', '.join(degenerate)} produced exactly {len(whole)} chunks: one per article, the
+same words as whole_article with only the whitespace changed. The reason
+is arithmetic — the longest article is ~{max(c.n_tokens for c in whole)} tokens, so a 256-token
+window never has anything to split. The chunker ran, did nothing, and
+would have been reported in Phase 3 as a distinct configuration.
 
 That is the kind of silent no-op that produces a bake-off table with two
 rows of suspiciously identical numbers and an author who cannot explain

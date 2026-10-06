@@ -57,6 +57,7 @@ import numpy as np
 import pandas as pd
 
 from src.corpus.build import load_corpus, load_golden_set
+from src.evaluation.judged_arms import write_metrics
 from src.evaluation.retrieval_metrics import stratified_split
 from src.generation.extractive import ExtractiveAnswerer
 from src.generation.pipeline import (
@@ -71,6 +72,7 @@ from src.retrieval.retrievers import BM25Retriever
 
 FIG_DIR = Path("reports/figures")
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+METRICS_DIR = Path("reports/metrics")
 
 # Locked in by Phase 3: markdown_section + BM25 at depth 15, chosen on
 # the Pareto frontier under a 600-token context budget.
@@ -321,6 +323,43 @@ for _, r in df.iterrows():
     print(f"  {r.answerer:<22}{r.refuse_oos:>11.1%}{r.answer_in:>10.1%}"
           f"{r.F1:>7.3f}{r.over_refuse:>9.1%}{cp:>10}{tok:>8}")
 
+if has_key:
+    # The measured record. CI has no key by design and cannot recompute
+    # the LLM rows, so the memo is verified against this file rather than
+    # against prose. Written only when the LLM arms actually ran; latency
+    # is left out because it is not reproducible and would make every
+    # re-run look like a changed result.
+    def _num(x):
+        return None if x is None or pd.isna(x) else round(float(x), 4)
+
+    fabricated = {
+        name: sum(1 for r in res
+                  if not r.refusal.is_refusal and r.citations
+                  and r.citation_precision is not None
+                  and r.citation_precision < 1.0)
+        for name, res in runs.items()
+    }
+    write_metrics(METRICS_DIR / "04_generation_arms.json", {
+        "generation_model": os.getenv("GENERATION_MODEL", "gpt-4o-mini"),
+        "retrieval": {"strategy": STRATEGY, "retriever": "bm25", "depth": DEPTH},
+        "n_questions": len(golden),
+        "arms": {
+            row["answerer"]: {
+                "refusal_rate_out_of_scope": _num(row["refuse_oos"]),
+                "answer_rate_in_scope": _num(row["answer_in"]),
+                "refusal_f1": _num(row["F1"]),
+                "over_refusal_rate": _num(row["over_refuse"]),
+                "partial_refusal_rate": _num(row["partial"]),
+                "citation_precision": _num(row["cite_prec"]),
+                "uncited_answer_rate": _num(row["uncited"]),
+                "mean_prompt_tokens_estimated": _num(row["tokens"]),
+                "fabricated_citations": fabricated[row["answerer"]],
+            }
+            for row in rows
+        },
+    })
+    print(f"\n  Saved -> {METRICS_DIR}/04_generation_arms.json")
+
 
 # =====================================================================
 # E. The refusal trade-off
@@ -455,7 +494,13 @@ assertion.
 for name, res in runs.items():
     answered = [r for r in res if not r.refusal.is_refusal]
     with_cites = [r for r in answered if r.citations]
-    bad = [r for r in with_cites if (r.citation_precision or 1.0) < 1.0]
+    # `is not None`, not `or 1.0`. Precision 0.0 is falsy, so the `or`
+    # form turned an answer whose citations were ALL invented into a
+    # perfect score and counted it as clean — the worst case reported as
+    # the best one. It never fired on a real run (every measured arm
+    # scored 1.000), which is exactly why it survived.
+    bad = [r for r in with_cites
+           if r.citation_precision is not None and r.citation_precision < 1.0]
     print(f"  {name}")
     print(f"    answered            : {len(answered)}")
     if answered:

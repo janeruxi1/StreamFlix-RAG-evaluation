@@ -151,6 +151,59 @@ def test_a_perfect_judge_passes_validation():
     assert report.is_trustworthy
 
 
+def test_a_correct_claim_counting_judge_passes_validation():
+    """The gate must pass the judge it exists to admit.
+
+    The oracle above answers 1.0 or 0.0, which no claim-counting judge
+    does. A real one returns a RATIO, and on a two-claim answer with one
+    bad claim the correct ratio is exactly 0.5. "Low" used to be a
+    strict `< 0.5`, so that correct verdict was scored as a judge error:
+    a flawless judge got 83% here, one slip from failing the gate.
+
+    This oracle returns the ratio a correct judge would, so the boundary
+    is exercised rather than stepped over.
+    """
+    true_ratio = {
+        "val-fabricated-1": 1 / 2,      # 4 streams: yes. $19.99: absent.
+        "val-fabricated-2": 1 / 2,      # billing date: yes. yearly change: absent.
+        "val-contradicted-1": 0 / 1,    # one claim, contradicted
+        "val-contradicted-2": 1 / 2,    # 14 days: contradicted. contact step: yes.
+    }
+
+    class ClaimCountingOracle(LexicalJudge):
+        name = "claim_counting_oracle"
+        def __init__(self):
+            self._by_answer = {c.answer: c for c in VALIDATION_CASES}
+        def faithfulness(self, answer, context):
+            c = self._by_answer[answer]
+            return Judgement("faithfulness", true_ratio.get(c.case_id, 1.0))
+        def relevancy(self, answer, question):
+            c = self._by_answer[answer]
+            return Judgement("relevancy", 0.9 if c.expect_relevant_high else 0.2)
+
+    low_cases = {c.case_id for c in VALIDATION_CASES if not c.expect_faithful_high}
+    assert low_cases == set(true_ratio), "a low-faithfulness case has no stated ratio"
+
+    report = validate_judge(ClaimCountingOracle())
+    assert report.failures() == []
+    assert report.overall_accuracy == 1.0
+    assert report.is_trustworthy
+
+
+def test_a_judge_just_above_half_is_still_wrong_on_a_bad_answer():
+    """Inclusive at 0.5 must not become lenient above it."""
+    class Lenient(LexicalJudge):
+        name = "lenient"
+        def faithfulness(self, answer, context):
+            return Judgement("faithfulness", 0.51)
+        def relevancy(self, answer, question):
+            return Judgement("relevancy", 0.51)
+
+    report = validate_judge(Lenient())
+    assert not any(r.faithfulness_correct for r in report.results)
+    assert not report.is_trustworthy
+
+
 def test_lexical_judge_fails_on_contradictions(articles):
     """The documented reason a lexical judge cannot replace a model.
 

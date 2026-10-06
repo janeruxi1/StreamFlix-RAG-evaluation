@@ -136,5 +136,18 @@ disk. Re-running a notebook after a kernel restart costs nothing.
 **Call ceiling** (`MAX_LLM_CALLS_PER_RUN=2000`) — a hard stop per process run.
 If a loop misbehaves, it raises instead of draining your budget.
 
-Estimated full-project cost with both enabled: **$10–25**, most of it in the
-evaluation harness (LLM-as-judge is the expensive part).
+Estimated cost of the full credentialed run with both enabled: **about $3**
+with the default two judged arms, most of it in the evaluation harness
+(LLM-as-judge is the expensive part). The run script prints the plan and
+asks before it spends anything:
+
+```bash
+python scripts/run_llm_eval.py --dry-run     # the plan; spends nothing
+python scripts/run_llm_eval.py               # confirm, then run notebooks 01-07
+```
+
+It writes each notebook's output to `reports/llm_run/` with credentials
+scrubbed, and the measured numbers to `reports/metrics/`. Set
+`JUDGE_ARMS=all` in `.env` to judge every prompt variant (about $6, and
+raise `MAX_LLM_CALLS_PER_RUN` to 3000 — the script refuses to start a run
+that would hit the ceiling halfway through).

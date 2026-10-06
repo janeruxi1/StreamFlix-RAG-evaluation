@@ -100,8 +100,8 @@ in_scope = [q for q in golden if q["category"] != "out_of_scope"]
 questions = [q["question"] for q in in_scope]
 
 # fixed_token_256 was dropped in Phase 2 as degenerate — it produced
-# byte-identical output to whole_article because no article exceeds 256
-# tokens. Carrying it here would add a duplicate row, not a data point.
+# the same words as whole_article, one chunk per article, because no
+# article exceeds 256 tokens. Carrying it here would add a duplicate row, not a data point.
 ACTIVE_STRATEGIES = ["whole_article", "markdown_section",
                      "fixed_token_128", "sentence_window"]
 DEPTHS = [3, 5, 10, 15]

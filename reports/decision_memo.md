@@ -25,9 +25,10 @@ the measured half to cover the unmeasured half. That is the specific
 mistake this project was built to avoid, and it would be strange to
 finish by making it.
 
-**Cost to close the gap: ~$1.25 in API calls and one run of notebooks 04,
-05 and 06.** That is the entire distance between a conditional
-recommendation and an evidenced one.
+**Cost to close the gap: about $3 in judge calls plus cents of
+generation, in one run of `python scripts/run_llm_eval.py`.** That is the
+entire distance between a conditional recommendation and an evidenced
+one.
 
 ---
 

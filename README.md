@@ -106,9 +106,10 @@ strawman.
 | ~~`fixed_token_256`~~ | ~~45~~ | — *dropped, see below* |
 | `sentence_window` | 994 | 11 |
 
-`fixed_token_256` **collapsed into `whole_article`** — byte-identical
-output. The longest article is 215 tokens, so a 256-token window never
-has anything to split. The chunker ran, did nothing, and would have
+`fixed_token_256` **collapsed into `whole_article`** — one chunk per
+article with the same words, only the whitespace changed. The longest
+article is ~215 estimated tokens, so a 256-token window never has
+anything to split. The chunker ran, did nothing, and would have
 appeared in the Phase 3 bake-off as a distinct configuration with
 mysteriously identical numbers. The notebook detects this dynamically and
 drops the arm.
@@ -518,8 +519,32 @@ python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
 
-pytest tests/ -q                              # 319 tests
+pytest tests/ -q                              # 356 tests
 ```
+
+Token counts throughout are **estimates** (words × 1.3), computed the
+same way on every machine. `tiktoken` is optional and used only to
+display an exact count beside the estimate; installing it changes no
+result. That separation is deliberate, and
+[`tests/test_token_determinism.py`](tests/test_token_determinism.py)
+enforces it — an earlier version let the tokenizer decide chunk
+boundaries, so the same code produced 202 chunks in CI and 209 on a
+machine that had installed `requirements.txt`.
+
+### With a key: the credentialed run
+
+```bash
+python scripts/run_llm_eval.py --dry-run      # the plan and its cost; spends nothing
+python scripts/run_llm_eval.py                # asks before spending, then runs 01-07
+```
+
+One command runs the generation arms and the judge, stops at the first
+failure, and keeps the evidence: each notebook's output in
+`reports/llm_run/` (scrubbed of credentials, with a manifest of what was
+installed) and the measured numbers in `reports/metrics/`. Roughly $3 at
+list prices with the default two judged arms; `JUDGE_ARMS=all` judges
+every prompt variant. If the judge fails its own validation gate, the LLM
+arms are not judged and that money is not spent.
 
 For the transformer embedding arm and the later LLM phases, see
 [`SETUP.md`](SETUP.md) — including how to configure a project-scoped key
@@ -581,7 +606,7 @@ src/
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
                06 judge audit · 07 decision memo + verification
-tests/         319 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         356 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       decision_memo.md, PROJECT_SUMMARY.md, scenario_brief.md,

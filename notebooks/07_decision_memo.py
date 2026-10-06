@@ -186,9 +186,10 @@ print(f"""
      production judge shows the opposite (documented) bias is unknown,
      and it determines whether prompt-variant comparisons mean anything.
 
-  Cost to close all three: roughly $1.25 of API calls and one run of
-  notebooks 04, 05 and 06. That is the entire gap between a conditional
-  recommendation and an evidenced one.
+  Cost to close all three: roughly $3 of judge calls plus cents of
+  generation, in one run of `python scripts/run_llm_eval.py`, which
+  prints the plan before spending anything. That is the entire gap
+  between a conditional recommendation and an evidenced one.
 """)
 
 
@@ -307,7 +308,7 @@ keep it honest.
 
 2. UNMEASURED IS MARKED UNMEASURED.
    Three specific gaps, each with the cost of closing it stated
-   (~$1.25 and one run). A reader can tell exactly which claims rest on
+   (~$3 and one run). A reader can tell exactly which claims rest on
    evidence and which rest on architecture.
 
 3. FAILURE MODES ARE RANKED BY COST, NOT FREQUENCY.

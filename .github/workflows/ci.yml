@@ -89,14 +89,18 @@ jobs:
       - name: Install detect-secrets
         run: pip install detect-secrets
 
-      # Scans the working tree against the committed baseline. Anything
+      # Scans every tracked file against the committed baseline. Anything
       # that looks like a credential and is not already accounted for
       # fails the build rather than reaching a reviewer.
+      #
+      # This uses the hook entry point, not `scan --baseline`. `scan`
+      # rewrites the baseline's `generated_at` timestamp on every run, so
+      # the earlier `git diff --exit-code .secrets.baseline` check failed
+      # whether or not anything was found. A check that cannot pass
+      # protects nothing: a permanently red job is one people learn to
+      # ignore, which is the opposite of what a secret scan is for.
       - name: Scan for committed secrets
-        run: |
-          detect-secrets scan --baseline .secrets.baseline
-          git diff --exit-code .secrets.baseline \
-            || (echo "::error::New potential secret detected. Review before committing." && exit 1)
+        run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
 
       - name: Assert .env is not tracked
         run: |
