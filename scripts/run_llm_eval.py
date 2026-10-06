@@ -31,6 +31,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -55,6 +56,12 @@ CACHE_DIR = ROOT / ".llm_cache"
 PACKAGES = ["numpy", "pandas", "scikit-learn", "matplotlib", "openai",
             "anthropic", "sentence-transformers", "tiktoken"]
 SECRET_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD")
+# Lines the notebooks print while a long loop is running. Matched on
+# their shape, not on "indented and contains an ellipsis", which also
+# matched ordinary prose in the output and echoed it as if it were progress.
+PROGRESS_LINE = re.compile(
+    r"^\s+(running \S+ over \d+ questions|\S+: (generating|judging)\b.*|"
+    r"(judged )?\d+/\d+) \.\.\.\s*$")
 
 
 def _version(package: str) -> str | None:
@@ -84,6 +91,27 @@ def commit_id() -> str:
     return _git("rev-parse", "--short=7", "HEAD")[:7]
 
 
+def environment_drift(manifest_path: Path) -> list[str]:
+    """Packages the last completed run had that this interpreter lacks.
+
+    A machine usually has several Pythons, and the one a new terminal
+    picks is not always the one the last run used. Started from the
+    wrong one, this script either stops for a missing SDK or — worse —
+    runs without the transformer arm and quietly regenerates figures
+    that no longer match the memo. Comparing against the last run's
+    manifest turns "the package is not installed" into "you are in a
+    different environment from the one that produced the results".
+    """
+    if not manifest_path.exists():
+        return []
+    try:
+        previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return sorted(name for name, version in previous.get("packages", {}).items()
+                  if version is not None and _version(name) is None)
+
+
 def _cache_entries() -> int:
     return len(list(CACHE_DIR.glob("*.json"))) if CACHE_DIR.exists() else 0
 
@@ -101,10 +129,17 @@ def _secrets() -> list[str]:
 
 
 def scrub(text: str, secrets: list[str]) -> str:
-    """Remove credentials and trailing whitespace from captured output."""
+    """Remove credentials and trailing whitespace from captured output.
+
+    The result ends in exactly one newline. The notebooks finish on a
+    blank line, and a log that keeps it is rewritten by the commit hook's
+    end-of-file fixer — which blocks the commit, leaves the files
+    half-staged, and happens again on every run. Evidence the hooks
+    refuse is not evidence anyone gets to commit.
+    """
     for s in secrets:
         text = text.replace(s, "[REDACTED]")
-    return "\n".join(line.rstrip() for line in text.splitlines()) + "\n"
+    return "\n".join(line.rstrip() for line in text.splitlines()).rstrip("\n") + "\n"
 
 
 def run_notebook(stem: str, env: dict, secrets: list[str]) -> dict:
@@ -119,7 +154,7 @@ def run_notebook(stem: str, env: dict, secrets: list[str]) -> dict:
     assert proc.stdout is not None
     for line in proc.stdout:
         captured.append(line)
-        if line.startswith(("  running", "    ", "  llm_")) and "..." in line:
+        if PROGRESS_LINE.match(line):
             print(f"      {line.strip()}", flush=True)       # progress only
     code = proc.wait()
 
@@ -177,7 +212,9 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 72)
     print("  Credentialed evaluation run")
     print("=" * 72)
+    drift = environment_drift(OUT_DIR / "manifest.json")
     print(f"""
+  Python           : {sys.executable}
   Notebooks        : {to_run[0][:2]} to {to_run[-1][:2]}
   Provider ready   : {ready}{'' if ready else '  — ' + blocker}
   Generation model : {os.getenv('GENERATION_MODEL', 'gpt-4o-mini')}
@@ -200,6 +237,21 @@ def main(argv: list[str] | None = None) -> int:
     tiktoken installed      : {tokenizer_available()}   (must not change any result)
 """)
 
+    if drift:
+        print(f"""  STOP: this is not the environment the last run used. That run had
+  these packages and this interpreter does not:
+
+    {', '.join(drift)}
+
+  Running here would not reproduce it: without sentence-transformers
+  the retrieval sweep drops the transformer arm and its figure is
+  redrawn without it, and without the provider SDK no cached response
+  can be read back. Switch to the interpreter that produced the results
+  (the Python line above shows which one this is) and run again.
+  Installing the packages here also works, but is slower and downloads
+  the embedding model again.
+""")
+        return 1
     if n_chunks != 202:
         print("  STOP: the chunk count is not 202, so this environment would "
               "produce numbers\n  the memo does not describe. Run the test "

@@ -20,17 +20,17 @@ B. THE SWEEP
 ==============================================================================
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights:  89%|████████▉ | 178/199 [00:00<00:00, 1776.75it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1806.77it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2416.39it/s]
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 3258.24it/s]
+Loading weights:  92%|█████████▏| 183/199 [00:00<00:00, 1827.66it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1854.46it/s]
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 3145.59it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2516.34it/s]
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2977.52it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2061.24it/s]
 
   64 configurations evaluated on 95 questions each
 
@@ -384,20 +384,53 @@ Swept 64 configurations. Four things came out of it.
    one to quote, since the dev number is contaminated by having
    chosen the maximum of 64 estimates.
 
-RECOMMENDED CONFIGURATION (<=600 token budget):
+HIGHEST RECALL UNDER A 600-TOKEN BUDGET:
    markdown_section|dense_transformer|d15
    recall 0.907 at 570 tokens/query
 
-   Chosen on the Pareto frontier under a context budget, not by topping
+   Found on the Pareto frontier under a context budget, not by topping
    the raw recall table. It gives up 0.060 recall against the
    leader and costs 4.4x less context per query.
 
-   Section D named fixed_token_128|hybrid|d15
-   as the cheapest serious contender. The two differ by 0.029 recall and 956 tokens —
-   the same choice for practical purposes. The budget rule picks the
-   lexical arm because it scores marginally higher for marginally more
-   context; either is defensible, and preferring one on that margin
-   would be exactly the noise-reading this notebook argues against.
+SHIPPING CONFIGURATION:
+   markdown_section|bm25|d15
+   recall 0.882 at 571 tokens/query
+
+   Tested against the budget pick on the same chunks, depth and cost:
+     markdown_section|dense_transformer|d15 vs markdown_section|bm25|d15
+     +0.025 [-0.039, +0.090] vs +/-0.050 -> INCONCLUSIVE
+
+   BM25 ships. The budget rule prefers dense_transformer by +0.025 recall,
+   and that gap is INCONCLUSIVE — its interval includes zero, and
+   it also reaches past the 0.05 margin, so the data supports neither
+   "better" nor "the same". Only 22 of 95 questions differ at all.
+
+   Given an unresolved difference, the simpler system ships: no model
+   download, no fitted state, exactly reproducible. Switching on a
+   +0.025 gap would be the noise-reading this notebook argues
+   against. Calling the two equivalent would be the other error.
+
+   WHERE they differ is the useful part, and the aggregate hides it:
+     single_hop  dense_transformer 0.933   bm25 0.983   (n=60)
+     multi_hop   dense_transformer 0.950   bm25 0.817   (n=20)
+     ambiguous   dense_transformer 0.744   bm25 0.561   (n=15)
+
+   The two arms fail on different questions. That is an argument for
+   combining them (a reranker, or fusion tuned on a larger golden set)
+   as the next experiment, and it is not an argument for swapping one
+   for the other.
+
+WHAT THE BUDGET COSTS:
+   whole_article|dense_transformer|d15 vs markdown_section|bm25|d15
+   +0.085 [+0.039, +0.135] vs +/-0.050 -> DIFFERENT
+
+   The top of the table retrieves +0.085 more recall for 4.4x the
+   context. That difference is real: its interval excludes zero.
+   The budget is a trade, not a free saving, and the memo has to say so.
+   Whether the extra context would help or hurt the ANSWERS is not
+   something a retrieval metric can say — more evidence and more
+   distractors arrive together. It is the first thing to test once the
+   generation layer is judged.
 
 STILL OPEN — carried into Phase 4:
 
@@ -405,11 +438,11 @@ STILL OPEN — carried into Phase 4:
     (~0.52 at depth 10 vs ~0.95 for single-hop). No
     configuration fixes this, which suggests the problem is query
     understanding rather than ranking.
-  - The transformer arm ran.
+  - The transformer arm ran, and is compared against the shipping configuration above.
 
   - Hybrid fusion did not clearly beat its best constituent. RRF was
     used untuned by design; tuning k on 95 questions would fit noise.
 
-HANDOFF TO PHASE 4: build the generation layer on the recommended
+HANDOFF TO PHASE 4: build the generation layer on the shipping
 configuration, and carry the depth/cost trade-off forward — the token
 budget chosen here is the context the generator has to work with.

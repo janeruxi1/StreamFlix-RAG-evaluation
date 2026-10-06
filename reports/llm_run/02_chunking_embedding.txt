@@ -80,8 +80,7 @@ D. BUILD THE INDEX
 ==============================================================================
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights:  88%|████████▊ | 175/199 [00:00<00:00, 1734.06it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1761.06it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2390.67it/s]
 C:\Users\ruthr\OneDrive\Documents\Claude\Projects\Github DS Portfolio Projects\03-rag-support-intelligence\src\retrieval\embedding.py:101: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
   return int(self._model.get_sentence_embedding_dimension())
 

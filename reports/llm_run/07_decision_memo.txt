@@ -3,26 +3,29 @@ A. THE RECOMMENDATION
 ==============================================================================
 
   SHIP     the retrieval layer: markdown_section + BM25 at depth 15,
-           costing ~591 context tokens per query.
+           costing ~571 estimated context tokens per query.
 
-  HOLD     the generation layer. It is built, tested, and unmeasured.
-           No LLM arm has ever run, so no claim about answer quality in
-           this project is backed by evidence.
+  PILOT    the `cited` generation layer with a person in the loop.
+           It refused 25 of 25 unanswerable questions, invented no
+           citations, and scored 0.984 faithfulness on the 76 answers
+           it gave. That is enough to put it in front of support agents
+           and not enough to put it in front of customers unattended.
 
-  The split is the recommendation. Retrieval was measured across 48
-  configurations with paired inference and held-out selection; it is
-  ready. Generation has a complete harness pointed at it and no
-  readings. Shipping both on the strength of the first would be
-  borrowing credibility from the measured half to cover the unmeasured
-  half, which is the specific mistake this project was built to avoid.
+  DO NOT   ship the `naive` prompt in any form. It never refuses.
+
+  The line between "pilot" and "ship" is drawn by sample size, not by
+  the scores. 25 of 25 supports a true refusal rate of at least 86.7%;
+  it cannot exclude about one unanswerable question in 8 being
+  answered. For a billing assistant that is not a deployable bound.
 
 ==============================================================================
-B. EVIDENCE — RETRIEVAL
+B. EVIDENCE — RETRIEVAL  (live)
 ==============================================================================
 
   context_recall    : 0.882
   context_precision : 0.211  against a ceiling of 0.441
                       (48% of what is structurally possible)
+  context cost      : ~571 estimated tokens per query
 
   category         recall  precision   ceiling  % of max
   ------------------------------------------------------
@@ -30,100 +33,187 @@ B. EVIDENCE — RETRIEVAL
   multi_hop         0.817      0.313     0.620       51%
   ambiguous         0.561      0.178     0.800       22%
 
-  Why the configuration was chosen: it sits on the Pareto frontier under
-  a 600-token context budget, not at the top of the recall table. The
-  highest-recall configuration costs 4.5x more context for a difference
-  that fails a significance test — and the cheap option is INCONCLUSIVE
-  rather than equivalent, so the honest claim is a certain cost saving
-  against an unresolved recall cost bounded above by 0.084.
+  The weak category is ambiguous at 22% of its ceiling: underspecified
+  questions are where this system is furthest from what its own
+  architecture allows.
 
-  The weak category is ambiguous at 22% of its ceiling. That is the
-  deployment risk worth naming: underspecified questions are where this
-  system is furthest from what its own architecture allows.
+  From the recorded 64-configuration sweep (transformer arm included):
 
-==============================================================================
-C. UNMEASURED — AND WHAT IT WOULD TAKE
-==============================================================================
+    What the 600-token budget costs. The top of the table,
+    whole_article|dense_transformer|d15, reaches 0.967 recall at
+    4.4x the context: +0.085 [+0.039, +0.135], DIFFERENT.
+    The budget is a trade with a measured price, not a free saving.
 
-  Credential present : True
+    Why BM25 and not the transformer. On the same chunks at the same
+    depth and cost, markdown_section|dense_transformer|d15 scores +0.025 [-0.039, +0.090]
+    against BM25: INCONCLUSIVE, with 22 of 95 questions differing.
+    An unresolved difference does not justify a model dependency, so
+    the simpler arm ships. The two fail on different questions:
 
-
-  Unmeasured, in order of how much it should hold up a deployment:
-
-  1. ANSWER QUALITY. No LLM arm has run. Faithfulness, relevancy and
-     correctness have a harness and no readings. The extractive
-     baseline's 62% in-scope answer rate is a floor for a
-     non-LLM method, not a forecast for the LLM.
-
-  2. THE JUDGE. The only judge exercised end to end scores 50% on
-     the Phase 5 validation gate and fails it. Its faithfulness numbers
-     are harness output, not evidence.
-
-  3. JUDGE BIAS AT DEPLOYMENT SCALE. The audited judge penalises length
-     by -0.521, material on 3 of 3 probes. Whether the intended
-     production judge shows the opposite (documented) bias is unknown,
-     and it determines whether prompt-variant comparisons mean anything.
-
-  Cost to close all three: roughly $3 of judge calls plus cents of
-  generation, in one run of `python scripts/run_llm_eval.py`, which
-  prints the plan before spending anything. That is the entire gap
-  between a conditional recommendation and an evidenced one.
+      single_hop  transformer 0.933   bm25 0.983
+      multi_hop   transformer 0.950   bm25 0.817
+      ambiguous   transformer 0.744   bm25 0.561
 
 ==============================================================================
-D. KNOWN FAILURE MODES, RANKED BY DEPLOYMENT RISK
+C. EVIDENCE — GENERATION  (recorded)
+==============================================================================
+
+  Generator gpt-4o-mini, judged by <LLMJudge name='llm_judge_gpt-4o'>.
+  The judge scored 100% on 9 validation cases before any of its
+  scores were used (the lexical judge it replaced scores 50%).
+
+  arm                    refuse OOS  answer in  faithful  correct  fab. cites
+  ---------------------------------------------------------------------------
+  extractive_baseline         56.0%      62.1%     0.810    0.268           0
+  llm_naive                    0.0%     100.0%     0.764    0.795           0
+  llm_cited                  100.0%      80.0%     0.984    0.733           0
+
+  1. The LLM earns its cost over the baseline. Judged correctness
+     0.733 against 0.268 for the extractive answerer.
+
+  2. The refusal instruction is what separates the arms. `llm_naive` answered
+     all 25 unanswerable questions, and 23 of those answers contain
+     claims the judge found unsupported. `llm_cited` refused all 25.
+
+  3. When both arms answer, they are equally faithful. The headline
+     gap (0.984 vs 0.764) is composition: each arm is averaged over
+     the questions IT chose to answer. On the 76 both answered,
+     0.984 vs 0.970: -0.015 [-0.040, +0.010] (llm_naive minus llm_cited).
+
+  4. Refusing has a measured price. Correctness, llm_naive minus llm_cited:
+       in-scope      +0.160 [+0.102, +0.219]
+       out-of-scope  -0.308 [-0.496, -0.116]
+     The two effects nearly cancel overall (+0.062 [-0.007, +0.133]),
+     which is why a single correctness number would have hidden both.
+
+  5. Over-refusal is partly a retrieval problem. `llm_cited` declined 19 of
+     95 answerable questions; the evidence was fully retrieved for
+     10, partly for 6 and not at all for 3. So 9 of the 19 were
+     declined without the full evidence in hand, which no prompt
+     fixes. And 10 of the 15 ambiguous questions were refused — the
+     same category retrieval is weakest on.
+
+==============================================================================
+D. HOW MUCH THE EVIDENCE CAN BEAR
+==============================================================================
+
+  1. THE SAFETY NUMBER IS A SMALL SAMPLE. 25 of 25 is a lower bound of
+     86.7% on the true refusal rate, on questions written by the
+     same person who wrote the corpus.
+
+  2. THE JUDGE IS VALIDATED, NOT CERTIFIED. 9 cases with known verdicts
+     is a floor test. On the bias probes the longer answer scored
+     lower on 2 of 3 probes (-0.222 mean), and the judge's stated reasons
+     name specific added claims rather than length. Checked against
+     real answers 28 words apart, a per-word penalty predicts
+     -0.171 and the data shows -0.015 [-0.040, +0.010].
+     Agreement with the lexical judge is kappa -0.465, which counts
+     against the lexical judge. No second validated rater exists.
+
+  3. THE JUDGE IS LENIENT ON OMISSION. On the planted contradiction
+     (mh-011) `llm_naive` is `states_one` and `llm_cited` is `states_neither`,
+     and the judge scored them 0.80 and 0.80 against a reference
+     that names the conflict. It checks the claims an answer makes; a
+     missing caveat is not a false claim.
+
+  4. ONE MODEL, ONE RUN, ONE CORPUS. Temperature 0, a single generator
+     version, 45 synthetic articles. None of the numbers above says
+     anything about a different model or a real help centre.
+
+==============================================================================
+E. KNOWN FAILURE MODES, RANKED BY DEPLOYMENT RISK
 ==============================================================================
 
   Ranked by cost to a customer, not by frequency.
 
-  1. ANSWERING AN UNANSWERABLE QUESTION       11/25 out-of-scope
-     A confident wrong answer about billing is the most expensive
-     output this system can produce. It is also the one the corpus was
-     built to provoke: the hardest out-of-scope questions have a
-     topically adjacent article that is silent on the actual question.
+  1. TWO SOURCES DISAGREE AND THE ANSWER DOES NOT SAY SO.
+     mh-011: `llm_cited` is `states_neither`, `llm_naive` is `states_one`. No judged
+     arm states both refund windows. This is a corpus defect a prompt
+     cannot repair, and it is the one failure the judge under-scores.
 
-  2. AMBIGUOUS QUESTIONS UNDER-RETRIEVE       22% of ceiling
-     Not a ranking failure. The system retrieves the wrong articles
-     because it cannot tell which reading of the question was meant —
-     a query-understanding problem that neither retrieval tuning nor
-     prompting addresses.
+  2. ANSWERING AN UNANSWERABLE QUESTION. Not observed for `llm_cited`
+     (25 of 25 out-of-scope refused), and bounded only at 86.7%.
 
-  3. THE PLANTED CONTRADICTION (mh-011)       unresolved
-     Both refund windows retrieve at depth 15, so the evidence is
-     present. Whether any answer FLAGS the conflict rather than
-     silently picking one is unmeasured and needs the LLM arms.
+  3. AN UNSUPPORTED CLAIM IN A CITED ANSWER. 3 of 76 answers fell below
+     the faithfulness threshold. A citation makes an answer checkable,
+     not correct.
 
-  4. OVER-REFUSAL                             34 in-scope questions
-     A silent UX failure: the user gets nothing when the evidence was
-     available. Cheaper than a wrong answer, and invisible in any
-     metric that only counts hallucinations.
+  4. OVER-REFUSAL. 19 of 95 answerable questions declined. A silent
+     failure: the customer gets nothing, and no hallucination metric
+     records it.
+
+  5. AMBIGUOUS QUESTIONS. Retrieval reaches 22% of its precision
+     ceiling there, and generation then refuses most of them. Query
+     understanding, which neither retrieval tuning nor prompting fixes.
 
 ==============================================================================
-E. VERIFICATION — EVERY MEMO NUMBER RECOMPUTED
+F. VERIFICATION — EVERY MEMO NUMBER CHECKED
 ==============================================================================
 
-  claim                         live value   present in memo
-  --------------------------------------------------------------
-  articles                              45   yes
-  golden questions                     120   yes
-  retrieval depth                       15   yes
-  context tokens                   591.252   yes
-  context recall                     0.882   yes
-  context precision                  0.211   yes
-  precision ceiling                  0.441   yes
-  ambiguous % of ceiling             0.222   yes
-  baseline answer rate               0.621   yes
-  baseline OOS refusal               0.560   yes
-  judge accuracy                     0.500   yes
-  judge length bias                 -0.521   yes
-  answered out-of-scope                 11   yes
-  over-refusals                         34   yes
+  claim                           source     memo must contain                       found
+  ----------------------------------------------------------------------------------------
+  articles                        live       45 articles                             yes
+  golden questions                live       120 questions                           yes
+  retrieval depth                 live       depth 15                                yes
+  context cost                    live       571 estimated context tokens            yes
+  context recall                  live       0.882                                   yes
+  context precision               live       0.211                                   yes
+  precision ceiling               live       0.441                                   yes
+  ambiguous % of ceiling          live       22% of                                  yes
+  baseline answer rate            live       62.1%                                   yes
+  baseline OOS refusal            live       56.0%                                   yes
+  lexical judge accuracy          live       scores 50%                              yes
+  configurations swept            record 03  64 configurations                       yes
+  top-of-table recall             record 03  0.967 recall                            yes
+  budget: recall given up         record 03  +0.085 [+0.039, +0.135]                 yes
+  budget: context ratio           record 03  4.4x                                    yes
+  transformer recall              record 03  0.907                                   yes
+  transformer vs BM25             record 03  +0.025 [-0.039, +0.090]                 yes
+  questions differing             record 03  22 of 95 questions                      yes
+  ambiguous recall, both arms     record 03  0.561 | 0.744                           yes
+  multi-hop recall, both arms     record 03  0.817 | 0.950                           yes
+  single-hop recall, both arms    record 03  0.983 | 0.933                           yes
+  cited: in-scope answer rate     record 04  80.0%                                   yes
+  cited: fabricated citations     record 04  0 fabricated citations                  yes
+  cited: refusal F1               record 04  0.889                                   yes
+  naive: answer length            record 04  67 words                                yes
+  cited: answer length            record 04  38 words                                yes
+  judge validation                record 05  100% on 9 validation cases              yes
+  cited: OOS refused              record 05  25 of 25 out-of-scope                   yes
+  cited: Wilson lower bound       record 05  86.7%                                   yes
+  cited: faithfulness             record 05  0.984                                   yes
+  cited: answers given            record 05  76 answers                              yes
+  cited: correctness              record 05  0.733                                   yes
+  cited: below threshold          record 05  3 of 76                                 yes
+  naive: faithfulness             record 05  0.764                                   yes
+  naive: correctness              record 05  0.795                                   yes
+  naive: OOS unsupported          record 05  23 of 25                                yes
+  baseline: judged correctness    record 05  0.268                                   yes
+  same questions: n               record 05  76 questions both                       yes
+  same questions: faithfulness    record 05  0.984 against 0.970                     yes
+  same questions: difference      record 05  -0.015 [-0.040, +0.010]                 yes
+  correctness gap, in-scope       record 05  +0.160 [+0.102, +0.219]                 yes
+  correctness gap, out-of-scope   record 05  -0.308 [-0.496, -0.116]                 yes
+  correctness gap, overall        record 05  +0.062 [-0.007, +0.133]                 yes
+  cited: in-scope refused         record 05  19 of 95                                yes
+  refusals by evidence            record 05  fully retrieved for 10, partly for ...  yes
+  ambiguous refused               record 05  10 of the 15 ambiguous                  yes
+  mh-011: cited stance            record 05  `states_neither`                        yes
+  mh-011: naive stance            record 05  `states_one`                            yes
+  mh-011: judge scores            record 05  0.80 and 0.80                           yes
+  length probes affected          record 06  2 of 3 probes                           yes
+  length probes: mean delta       record 06  -0.222                                  yes
+  kappa vs lexical judge          record 06  kappa -0.465                            yes
+  length: predicted gap           record 06  -0.171                                  yes
 
-  All 14 memo claims match live output.
+  All 53 memo claims match: 11 recomputed live, 42 against the measured records.
 
-  This check is the point of the phase as much as the memo is. Numbers
-  in a markdown file rot silently; numbers verified by a job that fails
-  the build cannot. Every figure in the memo is reproducible from this
-  repository at the commit it was written against.
+  The two kinds of check are not the same strength, and the split is
+  shown rather than hidden. A live claim is reproduced from this
+  repository on every run. A recorded claim shows the memo agrees with
+  what was measured when the credentialed run happened; re-running
+  `scripts/run_llm_eval.py` regenerates the records, and any change in
+  them fails this check until the memo is updated to match.
 
 ==============================================================================
 PHASE 7 VERDICT
@@ -132,25 +222,22 @@ PHASE 7 VERDICT
 The deliverable is reports/decision_memo.md. This notebook exists to
 keep it honest.
 
-1. THE RECOMMENDATION IS SPLIT, DELIBERATELY.
-   Ship retrieval, hold generation. Retrieval was measured across 48
-   configurations with paired inference, multiplicity correction and
-   held-out selection. Generation has a complete harness and zero
-   readings. Recommending both would borrow credibility from the
-   measured half.
+1. THE RECOMMENDATION HAS THREE PARTS, AND THEY REST ON DIFFERENT
+   AMOUNTS OF EVIDENCE.
+   Ship retrieval: measured across the full sweep with paired
+   inference and held-out selection. Pilot cited generation: measured,
+   on a sample too small to bound the failure that matters. Do not
+   ship the naive prompt: it never refuses.
 
-2. UNMEASURED IS MARKED UNMEASURED.
-   Three specific gaps, each with the cost of closing it stated
-   (~$3 and one run). A reader can tell exactly which claims rest on
-   evidence and which rest on architecture.
+2. SMALL SAMPLES ARE STATED AS BOUNDS.
+   A clean sweep on 25 questions is reported with its Wilson lower
+   bound, because the count alone reads as a guarantee it is not.
 
 3. FAILURE MODES ARE RANKED BY COST, NOT FREQUENCY.
-   Answering an unanswerable billing question is rarer than
-   over-refusing and far more expensive. A frequency-ordered list would
-   invert the priority.
+   The contradiction no arm surfaces is one question and ranks first.
 
-4. EVERY NUMBER IS VERIFIED BY THIS NOTEBOOK.
-   14 claims, recomputed and matched. CI fails on drift.
+4. EVERY NUMBER IS CHECKED, AND THE CHECK SAYS HOW.
+   53 claims: 11 recomputed live, 42 against committed records.
+   CI fails on drift in either.
 
-PROJECT COMPLETE at 7 of 7 phases, with the generation half of the
-system honestly labelled as built-but-unvalidated rather than shipped.
+PROJECT COMPLETE at 7 of 7 phases.

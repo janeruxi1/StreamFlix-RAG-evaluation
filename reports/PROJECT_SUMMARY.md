@@ -197,7 +197,7 @@ reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
                metrics/   measured records from the credentialed run
                llm_run/   that run's output and environment manifest
 scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py
-tests/         362 tests
+tests/         365 tests
 ```
 
 Everything runs with **no API key**: CI installs no LLM client and fails

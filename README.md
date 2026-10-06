@@ -640,7 +640,7 @@ python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
 
-pytest tests/ -q                              # 362 tests
+pytest tests/ -q                              # 365 tests
 ```
 
 Token counts throughout are **estimates** (words × 1.3), computed the
@@ -727,7 +727,7 @@ src/
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
                06 judge audit · 07 decision memo + verification
-tests/         362 tests — corpus, difficulty, chunking, retrieval, metrics,
+tests/         365 tests — corpus, difficulty, chunking, retrieval, metrics,
                generation, refusal, provider security
 data/          generated corpus + golden set (regenerable)
 reports/       decision_memo.md, PROJECT_SUMMARY.md, scenario_brief.md,
