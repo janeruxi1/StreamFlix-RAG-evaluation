@@ -233,3 +233,23 @@ def test_oracle_ranks_by_best_score_across_arms(bm25, dense):
     assert [h.score for h in hits] == sorted([h.score for h in hits],
                                              reverse=True)
     assert [h.rank for h in hits] == list(range(len(hits)))
+
+
+# ---------------------------------------------------------------------
+# Full-corpus baseline
+# ---------------------------------------------------------------------
+def test_full_corpus_returns_everything_whatever_is_asked():
+    """It is "no retriever", not "a bad retriever": every chunk, the same
+    order, for any query and any depth."""
+    from src.retrieval.retrievers import FullCorpusRetriever
+
+    chunks = whole_article(load_corpus())
+    full = FullCorpusRetriever(chunks)
+    first = full.search("How do I cancel?", top_k=3)
+    second = full.search("completely unrelated question", top_k=500)
+
+    assert len(first) == len(chunks) == 45
+    assert [h.chunk.chunk_id for h in first] == [c.chunk_id for c in chunks]
+    assert [h.chunk.chunk_id for h in first] == [h.chunk.chunk_id for h in second]
+    assert [h.rank for h in first] == list(range(1, len(chunks) + 1))
+    assert set(hits_to_articles(first)) == {c.article_id for c in chunks}

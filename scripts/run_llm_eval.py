@@ -1,6 +1,6 @@
 """Run the credentialed evaluation end to end and keep the evidence.
 
-    python scripts/run_llm_eval.py              # plan, confirm, run 01-07
+    python scripts/run_llm_eval.py              # plan, confirm, run 01-09
     python scripts/run_llm_eval.py --dry-run    # plan only, spends nothing
     python scripts/run_llm_eval.py --from 05    # resume at notebook 05
     python scripts/run_llm_eval.py --yes        # skip the confirmation
@@ -50,6 +50,8 @@ NOTEBOOKS = [
     "05_evaluation",
     "06_judge_analysis",
     "07_decision_memo",
+    "08_full_corpus_baseline",
+    "09_decision_model",
 ]
 OUT_DIR = ROOT / "reports" / "llm_run"
 CACHE_DIR = ROOT / ".llm_cache"
@@ -197,17 +199,30 @@ def main(argv: list[str] | None = None) -> int:
     from src.corpus.build import load_corpus, load_golden_set
     from src.corpus.difficulty import tokenizer_available
     from src.evaluation.judge_validation import VALIDATION_CASES
-    from src.evaluation.judged_arms import estimate_usd, parse_arms, plan_judging
+    from src.evaluation.judged_arms import (estimate_full_corpus_usd, estimate_usd,
+                                            parse_arms, plan_judging)
+    from src.evaluation.retrieval_metrics import context_tokens
     from src.generation.prompts import VARIANTS
     from src.llm.provider import provider_ready
     from src.retrieval.chunking import STRATEGIES
+    from src.retrieval.retrievers import FullCorpusRetriever
 
     ready, blocker = provider_ready()            # also loads .env
     golden = load_golden_set()
     arms = parse_arms(os.getenv("JUDGE_ARMS"), VARIANTS)
     n_refs = sum(1 for q in golden if q.get("reference_answer"))
     plan = plan_judging(len(golden), n_refs, len(VALIDATION_CASES), len(arms))
-    n_chunks = len(STRATEGIES["markdown_section"](load_corpus()))
+    articles = load_corpus()
+    n_chunks = len(STRATEGIES["markdown_section"](articles))
+    corpus_tokens = context_tokens(
+        FullCorpusRetriever(STRATEGIES["whole_article"](articles)).search(""))
+    full_gen_usd, full_judge_usd = estimate_full_corpus_usd(len(golden), corpus_tokens)
+    runs_baseline = "08_full_corpus_baseline" in to_run
+    baseline_plan = (f"""
+  Notebook 08, the full-corpus baseline: {2 * len(golden)} generations with all {len(articles)} articles
+    in the prompt (~${full_gen_usd:.2f}) and up to {2 * len(golden)} judge calls (~${full_judge_usd:.2f}).
+    It is skipped, and costs nothing, if the judge fails its gate.
+""" if runs_baseline else "")
 
     print("=" * 72)
     print("  Credentialed evaluation run")
@@ -227,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
   Generation: up to {len(golden) * len(VARIANTS)} calls on the generation model in notebook 04,
     typically cents in total. Notebook 06 adds a small number of judge
     calls for its bias probes.
-
+{baseline_plan}
   The dollar figure is an estimate from average prompt sizes and list
   prices, not a quote. If the judge fails its validation gate in
   notebook 05, the LLM arms are not judged and ~${estimate_usd(plan.arm_calls):.2f} is not spent.
@@ -290,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         "markdown_section_chunks": n_chunks,
         "tiktoken_available": tokenizer_available(),
         "planned_judge_calls": plan.total_calls,
+        "planned_full_corpus_usd": round(full_gen_usd + full_judge_usd, 2) if runs_baseline else 0,
         "notebooks": {},
     }
 

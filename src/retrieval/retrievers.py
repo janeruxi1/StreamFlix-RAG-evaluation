@@ -77,6 +77,32 @@ class Retriever(ABC):
 
 
 # ---------------------------------------------------------------------
+# No retrieval at all
+# ---------------------------------------------------------------------
+class FullCorpusRetriever(Retriever):
+    """Returns every chunk, for every query, in a fixed order.
+
+    The baseline that asks whether retrieval is needed. This help centre
+    is about eight thousand tokens, which fits in one prompt many times
+    over, so "give the model all of it" is a real alternative and the
+    first one a reviewer will raise. A retrieval system that cannot beat
+    it on a corpus this size has not earned its complexity here.
+
+    `top_k` is ignored on purpose: truncating would make this a bad
+    retriever instead of no retriever.
+    """
+
+    name = "full_corpus"
+
+    def __init__(self, chunks: list[Chunk]):
+        self._chunks = list(chunks)
+
+    def search(self, query: str, top_k: int = 5) -> list[SearchHit]:
+        return [SearchHit(chunk=c, score=0.0, rank=i)
+                for i, c in enumerate(self._chunks, 1)]
+
+
+# ---------------------------------------------------------------------
 # Lexical
 # ---------------------------------------------------------------------
 class BM25Retriever(Retriever):

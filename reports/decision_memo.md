@@ -19,10 +19,13 @@ support agent in the loop. Do not ship the `naive` prompt in any form.**
   **0 fabricated citations**, and scored **0.984** faithfulness on the
   **76 answers** it gave — from a judge that scored **100% on 9 validation
   cases** before any of its scores were used.
-- **The sample is what holds it at "pilot".** 25 of 25 supports a true
-  refusal rate of at least **86.7%** (95% Wilson lower bound). It cannot
-  exclude about one unanswerable question in 8 being answered, and for
-  billing questions that is not a bound to deploy on unattended.
+- **Sample size is what holds it at "pilot", and mostly not the sample
+  it first appears to be.** 25 of 25 supports a true refusal rate of at
+  least **86.7%** (95% Wilson lower bound), which cannot exclude about
+  one unanswerable question in 8 being answered. But once a cost is put
+  on a wrong answer, the larger uncertainty is the 3 unsupported answers
+  in 76: a rate that could be anywhere in [1.4%, 11.0%], and that moves
+  the value of the system 5.8x as much as the refusal rate does.
 
 The three parts rest on different amounts of evidence, and the
 recommendation is graded to match rather than rounded up to "ship".
@@ -200,25 +203,52 @@ which neither retrieval tuning nor prompting addresses.
 
 ---
 
+## What the numbers are worth
+
+A refusal bound is too low or high enough only relative to what a wrong
+answer costs. [`pilot_design.md`](pilot_design.md) states that cost
+model and works it through. Three results change how this memo should be
+read:
+
+- **The refusal evidence is enough for a moderate cost of error.** If
+  one bad answer costs ten deflected tickets and a tenth of traffic is
+  unanswerable, the system needs to refuse 61.7% of unanswerable
+  questions. Twenty-five of 25 already establishes more than that.
+- **The binding uncertainty is the bad-answer rate.** Three unsupported
+  answers in 76 is 3.9%, with an interval up to 11.0%. At the top of
+  that interval the system stops paying once a bad answer costs about
+  eight tickets, whatever it refuses.
+- **So the pilot is sized to measure that.** About 273 drafted answers
+  reviewed by agents brings the bad-answer rate's upper bound under the
+  break-even level, and the same labels give the judge the human rater
+  it lacks.
+
+The costs are assumptions, shown as ranges in the brief, and the
+conclusion is stated as which assumptions the decision survives.
+
 ## Pilot conditions
 
 The pilot is agent-assist: a support agent sees the cited draft and its
-sources, and decides what the customer receives.
+sources, and decides what the customer receives. Design, sample sizes
+and the early-stopping rule are in [`pilot_design.md`](pilot_design.md).
 
 1. **Fix the refund-window contradiction in the help centre before the
    pilot starts.** It is a content defect, and the system currently
    hides it.
-2. **Log every refusal with its retrieved articles**, so over-refusal is
+2. **Have agents label every draft** as supported or not. That is the
+   pilot's measurement of the bad-answer rate.
+3. **Log every refusal with its retrieved articles**, so over-refusal is
    measured on real questions rather than inferred from 95 synthetic
    ones.
-3. **Have agents label a sample of answers**, which gives the judge the
-   second rater it lacks.
 
 ## What would move this to "ship"
 
-- **A larger out-of-scope set.** Roughly 300 unanswerable questions with
-  no answered case would put the lower bound near 99%. Twenty-five
-  cannot.
+- **An agent-labelled bad-answer rate with an upper bound under
+  break-even**, at a cost of error the business has actually stated.
+- **A larger out-of-scope set, only if a wrong answer is expensive.**
+  Roughly 300 unanswerable questions with no answered case would put the
+  refusal bound near 99%, which matters once a bad answer costs twenty
+  tickets or more and not before.
 - **The deep-context configuration, judged.** Generation was only
   measured on the 571-token context. The 0.967-recall configuration
   might cut over-refusal, or dilute faithfulness, and only running the

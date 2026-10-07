@@ -90,6 +90,34 @@ def estimate_usd(n_calls: int) -> float:
             + n_calls * JUDGE_OUTPUT_TOKENS_PER_CALL / 1e6 * USD_PER_M_OUTPUT)
 
 
+# List prices for the default generation model. Same caveat as above.
+GEN_USD_PER_M_INPUT = 0.15
+GEN_USD_PER_M_OUTPUT = 0.60
+GEN_OUTPUT_TOKENS_PER_ANSWER = 60
+PROMPT_OVERHEAD_TOKENS = 200
+
+
+def generation_usd_per_query(context_tokens: float) -> float:
+    """Planning estimate for one generated answer over `context_tokens`."""
+    return ((context_tokens + PROMPT_OVERHEAD_TOKENS) / 1e6 * GEN_USD_PER_M_INPUT
+            + GEN_OUTPUT_TOKENS_PER_ANSWER / 1e6 * GEN_USD_PER_M_OUTPUT)
+
+
+def estimate_full_corpus_usd(n_questions: int, corpus_tokens: float) -> tuple[float, float]:
+    """(generation, judging) dollars for the full-corpus baseline.
+
+    Two prompt variants are generated with the whole corpus as context.
+    One is judged: faithfulness reads the whole corpus again, once per
+    question at most; correctness reads only the answer and a reference,
+    which is about a quarter of an average judge call.
+    """
+    generation = 2 * n_questions * generation_usd_per_query(corpus_tokens)
+    faithfulness = (n_questions * (corpus_tokens + 300) / 1e6 * USD_PER_M_INPUT
+                    + n_questions * JUDGE_OUTPUT_TOKENS_PER_CALL / 1e6 * USD_PER_M_OUTPUT)
+    correctness = 0.25 * estimate_usd(n_questions)
+    return generation, faithfulness + correctness
+
+
 @dataclass(frozen=True)
 class JudgePlan:
     """How many judge calls a run will make, known before it starts."""

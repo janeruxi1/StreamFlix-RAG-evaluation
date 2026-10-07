@@ -1,5 +1,7 @@
 # StreamFlix RAG — Retrieval-Augmented Support with an Evaluation Harness
 
+[![CI](https://github.com/janeruxi1/StreamFlix-RAG-evaluation/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/janeruxi1/StreamFlix-RAG-evaluation/actions/workflows/ci.yml)
+
 A question-answering system over a customer-support knowledge base, built
 around the part that usually gets skipped: **measuring whether it actually
 works.**
@@ -602,6 +604,8 @@ would be needed to put the bound near 99%.
 | 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | ✅ Complete |
 | 6. Judge audit — bias probes, inter-judge agreement | ✅ Complete |
 | 7. Decision memo + deployment recommendation | ✅ Complete |
+| 8. Full-corpus baseline — does retrieval beat sending all 45 articles with no retrieval? | 🔬 Built; decision rule committed before the run, result pending |
+| 9. Decision model + pilot design — break-even costs, sample sizes ([brief](reports/pilot_design.md)) | ✅ Complete |
 
 ---
 
@@ -639,8 +643,9 @@ python notebooks/04_generation.py             # grounding + refusal (no key need
 python notebooks/05_evaluation.py             # eval harness (no key needed)
 python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
+python notebooks/09_decision_model.py         # what the measured rates are worth
 
-pytest tests/ -q                              # 373 tests
+pytest tests/ -q                              # 395 tests
 ```
 
 Token counts throughout are **estimates** (words × 1.3), computed the
@@ -726,15 +731,16 @@ src/
                extractive non-LLM baseline
   evaluation/  retrieval metrics, paired bootstrap, Holm correction,
                equivalence testing, Pareto frontier, LLM judge,
-               judge validation suite, RAG metrics
+               judge validation suite, RAG metrics, decision model
 notebooks/     01 corpus · 02 chunking + embedding · 03 retrieval bake-off
                04 generation, grounding + refusal · 05 evaluation harness
                06 judge audit · 07 decision memo + verification
-tests/         373 tests — corpus, difficulty, chunking, retrieval, metrics,
-               generation, refusal, provider security
+               08 full-corpus baseline · 09 decision model + pilot sizing
+tests/         395 tests — corpus, difficulty, chunking, retrieval, metrics,
+               generation, refusal, provider security, decision model
 data/          generated corpus + golden set (regenerable)
-reports/       decision_memo.md, PROJECT_SUMMARY.md, scenario_brief.md,
-               figures
+reports/       decision_memo.md, pilot_design.md, PROJECT_SUMMARY.md,
+               scenario_brief.md, figures
 app/           Streamlit demo
 ```
 
