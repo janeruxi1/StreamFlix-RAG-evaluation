@@ -95,6 +95,18 @@ R04 = _record("04_generation_arms.json")
 R05 = _record("05_judged_arms.json")
 R06 = _record("06_judge_audit.json")
 records_present = all(r is not None for r in (R03, R04, R05, R06))
+# Phase 8 came after this memo's first version and changed its first
+# line. Its record is optional here: notebook 08 verifies its own
+# section of the memo.
+R08 = _record("08_full_corpus.json")
+if R08 is None:
+    RETRIEVAL_NEEDED = """Whether retrieval improves on sending every article is
+           Phase 8's question, and that record is missing."""
+else:
+    _d = R08["full_minus_rag"]["correctness_in_scope"]
+    RETRIEVAL_NEEDED = f"""Retrieval is OPTIONAL at this corpus size. Sending all {R08['n_articles']} articles
+           gave the same refusals and answer rate, and correctness
+           {_d['difference']:+.3f} [{_d['ci_low']:+.3f}, {_d['ci_high']:+.3f}] (Phase 8). It is kept on cost and headroom."""
 
 
 def _ci(d: dict) -> str:
@@ -141,8 +153,9 @@ print("=" * 78)
 
 if not records_present:
     print(f"""
-  SHIP     the retrieval layer: {STRATEGY} + BM25 at depth {DEPTH},
-           costing ~{ctx_tokens:.0f} estimated context tokens per query.
+  RETRIEVE with {STRATEGY} + BM25 at depth {DEPTH}, costing
+           ~{ctx_tokens:.0f} estimated context tokens per query.
+           {RETRIEVAL_NEEDED}
 
   NO RECOMMENDATION on generation. The measured records in
   {METRICS_DIR}/ are missing, so nothing about answer quality can be
@@ -152,8 +165,9 @@ else:
     ship = R05["runs"][SHIP_ARM]
     ship_ref = R05["refusals"][SHIP_ARM]
     print(f"""
-  SHIP     the retrieval layer: {STRATEGY} + BM25 at depth {DEPTH},
-           costing ~{ctx_tokens:.0f} estimated context tokens per query.
+  RETRIEVE with {STRATEGY} + BM25 at depth {DEPTH}, costing
+           ~{ctx_tokens:.0f} estimated context tokens per query.
+           {RETRIEVAL_NEEDED}
 
   PILOT    the `{SHIP_ARM.replace('llm_', '')}` generation layer with a person in the loop.
            It refused {ship_ref['out_of_scope_refused']} of {ship_ref['out_of_scope_n']} unanswerable questions, invented no
@@ -274,12 +288,13 @@ else:
      The two effects nearly cancel overall ({_ci(R05['paired_correctness'][pair])}),
      which is why a single correctness number would have hidden both.
 
-  5. Over-refusal is partly a retrieval problem. `{SHIP_ARM}` declined {ship_ref['in_scope_refused']} of
+  5. Over-refusal looks like a retrieval problem. `{SHIP_ARM}` declined {ship_ref['in_scope_refused']} of
      {len(in_scope)} answerable questions; the evidence was fully retrieved for
      {ship_ref['in_scope_refused_with_full_evidence']}, partly for {ship_ref['in_scope_refused_with_partial_evidence']} and not at all for {ship_ref['in_scope_refused_with_no_evidence']}. So {ship_ref['in_scope_refused_with_partial_evidence'] + ship_ref['in_scope_refused_with_no_evidence']} of the {ship_ref['in_scope_refused']} were
-     declined without the full evidence in hand, which no prompt
-     fixes. And {ship_ref['in_scope_refused_by_category']['ambiguous']['refused']} of the {ship_ref['in_scope_refused_by_category']['ambiguous']['n']} ambiguous questions were refused — the
-     same category retrieval is weakest on.
+     declined without the full evidence in hand. Whether missing
+     evidence CAUSED them is a separate question, and Phase 8 tests
+     it by supplying every article. {ship_ref['in_scope_refused_by_category']['ambiguous']['refused']} of the {ship_ref['in_scope_refused_by_category']['ambiguous']['n']} ambiguous questions
+     were refused.
 """)
 
 
@@ -531,8 +546,9 @@ keep it honest.
 
 1. THE RECOMMENDATION HAS THREE PARTS, AND THEY REST ON DIFFERENT
    AMOUNTS OF EVIDENCE.
-   Ship retrieval: measured across the full sweep with paired
-   inference and held-out selection. Pilot cited generation: measured,
+   Retrieval: the configuration is measured across the full sweep
+   with paired inference and held-out selection, and Phase 8 found it
+   optional at this corpus size. Pilot cited generation: measured,
    on a sample too small to bound the failure that matters. Do not
    ship the naive prompt: it never refuses.
 
@@ -547,5 +563,7 @@ keep it honest.
    {len(claims)} claims: {n_live} recomputed live, {len(claims) - n_live} against committed records.
    CI fails on drift in either.
 
-PROJECT COMPLETE at 7 of 7 phases.
+The memo's seven phases are complete. Phases 8 and 9 test its
+conclusions: 08 against using no retrieval at all, 09 against a stated
+cost of error.
 """)

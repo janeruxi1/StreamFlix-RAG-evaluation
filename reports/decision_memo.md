@@ -8,12 +8,19 @@
 
 ## TL;DR
 
-**Ship the retrieval layer. Pilot the `cited` generation layer with a
-support agent in the loop. Do not ship the `naive` prompt in any form.**
+**Retrieval is optional at this size. Pilot the `cited` generation layer
+with a support agent in the loop. Do not ship the `naive` prompt in any
+form.**
 
-- **Retrieval is measured and ready.** BM25 over author-headed sections
-  at depth 15 reaches **0.882** context recall for about **571 estimated
-  context tokens** per query.
+- **Retrieval does not improve the answers at 45 articles.** Sending the
+  model the whole help centre gave the same refusals (25 of 25), the
+  same answer rate (76 of 95) and correctness within noise,
+  +0.034 [-0.041, +0.109]. The pilot runs on retrieval anyway, BM25 over
+  author-headed sections at depth 15 (**0.882** context recall for about
+  **571 estimated context tokens** per query), because it is built, it
+  costs about an eighth as much per query, and its context does not grow
+  when the help centre does. That is a choice on cost and headroom, and
+  either system would be defensible today.
 - **Generation is measured, and good on the sample it was measured on.**
   The `cited` prompt refused **25 of 25 out-of-scope** questions, produced
   **0 fabricated citations**, and scored **0.984** faithfulness on the
@@ -32,7 +39,7 @@ recommendation is graded to match rather than rounded up to "ship".
 
 ---
 
-## What ships
+## What the pilot runs
 
 | | |
 |---|---|
@@ -51,12 +58,13 @@ the top of the recall table. Across **64 configurations**, the top of the
 table is `whole_article` with transformer embeddings at depth 15:
 **0.967 recall** for **4.4x** the context.
 
-The gap between that and what ships is **+0.085 [+0.039, +0.135]** recall,
+The gap between that and what the pilot runs is **+0.085 [+0.039, +0.135]** recall,
 and its interval excludes zero. The budget is a trade with a measured
 price, not a free saving. Whether the extra context would help or hurt
 the *answers* is not something a retrieval metric can say, because more
-evidence and more distractors arrive together. It is the first open
-question below.
+evidence and more distractors arrive together. Phase 8 measured the
+limiting case, every article in the prompt, and the answers were neither
+better nor worse (see "Is retrieval needed at all?").
 
 ### Why BM25 and not the transformer
 
@@ -137,12 +145,74 @@ gives up real helpfulness on answerable questions to buy safety on
 unanswerable ones. That is the right trade for billing, and it is a
 trade.
 
-**5. Over-refusal is partly a retrieval problem.** `cited` declined
-**19 of 95** answerable questions. The evidence was fully retrieved for
-10, partly for 6 and not at all for 3, so nearly half were declined
-without the full evidence in hand, which no prompt fixes. And
-**10 of the 15 ambiguous** questions were refused: the category retrieval
-is weakest on is the one generation gives up on.
+**5. Over-refusal looks like a retrieval problem and mostly is not.**
+`cited` declined **19 of 95** answerable questions. The evidence was
+fully retrieved for 10, partly for 6 and not at all for 3, which reads
+as if nearly half were declined for want of evidence. Phase 8 tested
+that reading by supplying every article, and it did not hold: see the
+next section. **10 of the 15 ambiguous** questions were refused, and the
+full-corpus arm refused the same number.
+
+---
+
+## Is retrieval needed at all?
+
+The help centre is **45 articles**, about 7,600 tokens. It fits in one
+prompt, so the simplest system has no retriever: send everything. Phase 8
+ran that system with the same `cited` prompt, generator, judge and 120
+questions. The rule for what would count as retrieval losing was
+committed to the repository before the run.
+
+| | Retrieval | Full corpus | Full corpus minus retrieval |
+|---|---:|---:|---:|
+| unanswerable questions refused | 25 of 25 | 25 of 25 | no difference |
+| answerable questions answered | 76 of 95 | 76 of 95 | +0.000 [-0.063, +0.074] |
+| correctness, answerable | 0.715 | 0.749 | +0.034 [-0.041, +0.109] |
+| faithfulness, where both answered (70) | | | -0.014 [-0.042, +0.011] |
+| answers with an unsupported claim | 3 of 76 | 2 of 76 | |
+| context per query | 571 tokens | 7,611 tokens | 13.3x |
+| generation cost per 1,000 queries | $0.15 | $1.21 | |
+
+**The two systems cannot be told apart on answers.** No interval
+excludes zero, and the faithfulness difference sits inside the 0.05
+margin set in advance. The rule required the full corpus to be
+measurably more correct before it replaced retrieval. It was not, so
+retrieval stays.
+
+**That is a weaker result for retrieval than "stays" sounds.** The rule
+put the burden of proof on the challenger. A rule that gave ties to the
+simpler system would have returned the other verdict on the same data.
+What retrieval buys at 45 articles is cost and headroom, not answer
+quality. At the pilot's 1,000 tickets a day the cost difference is about
+a dollar a day, so headroom is the real argument: retrieval's context
+stays the same size as the help centre grows, and the full prompt does
+not. That argument is about a larger corpus than this project tested.
+"Cannot be told apart" is also not "shown equal": the correctness
+interval reaches +0.109, wider than the 0.05 this memo treats as
+equivalent elsewhere.
+
+**It moved where the over-refusal problem sits.** Retrieval refused 19
+answerable questions. With every article in the prompt the model still
+refused 13 of those 19, and it refused 6 questions retrieval answered.
+Nine of the 19 had been refused without the full evidence retrieved;
+supplying it turned 2 of the 9 into answers. Over-refusal is mostly the
+prompt's caution, and a better retriever would recover little of it.
+
+**It did not surface the contradiction.** With both refund articles
+certainly in the context, `cited` still states neither window. That
+failure belongs to generation and to the help centre, not to retrieval.
+
+**It did not make the unsafe prompt safe.** Given everything, `naive`
+refused 0 of 25 unanswerable questions, the same as with retrieval.
+Seeing the whole help centre does not make a model say that none of it
+answers the question. The instruction does.
+
+**One exploratory signal.** On the 20 multi-hop questions the full
+corpus scored +0.138 [+0.030, +0.263] higher on correctness. That cut
+was not in the rule, it is one of three read after the result, and it
+has not been corrected for that. It is a hypothesis for a pre-declared
+test: depth 15 may be dropping the second article a multi-hop question
+needs.
 
 ---
 
@@ -184,8 +254,9 @@ Ranked by expense, not frequency.
 state different refund windows, 14 days and 30. Both retrieve. `naive`
 asserts 14 days (`states_one`); `cited` names neither window and points
 at the refund policy (`states_neither`). No judged arm surfaces the
-conflict. This is a corpus defect that a prompt cannot repair, and it is
-the one failure the judge under-scores.
+conflict, including the arm given every article. This is a corpus defect
+that a prompt cannot repair, and it is the one failure the judge
+under-scores.
 
 **2. Answering an unanswerable question.** Not observed for `cited`, and
 bounded only as far as 25 questions can bound it.
@@ -194,8 +265,10 @@ bounded only as far as 25 questions can bound it.
 fell below the faithfulness threshold. A citation makes an answer
 checkable, not correct.
 
-**4. Over-refusal.** 19 answerable questions declined. A silent failure:
-the customer gets nothing, and no hallucination metric records it.
+**4. Over-refusal.** 19 answerable questions declined, most of them
+declined again when nothing was missing from the context. A silent
+failure: the customer gets nothing, and no hallucination metric records
+it.
 
 **5. Ambiguous questions.** Retrieval finds little of what is available
 and generation then refuses most of them. This is query understanding,
@@ -249,10 +322,11 @@ and the early-stopping rule are in [`pilot_design.md`](pilot_design.md).
   Roughly 300 unanswerable questions with no answered case would put the
   refusal bound near 99%, which matters once a bad answer costs twenty
   tickets or more and not before.
-- **The deep-context configuration, judged.** Generation was only
-  measured on the 571-token context. The 0.967-recall configuration
-  might cut over-refusal, or dilute faithfulness, and only running the
-  judged arms on it will say which.
+- **A fix for over-refusal, tested as a prompt change.** More context
+  is ruled out as the fix: with all of it, the answer rate stayed at
+  76 of 95. Recovering those refusals means changing what the prompt
+  accepts as enough evidence, and then re-measuring the 25 of 25,
+  because that is the number such a change puts at risk.
 - **A clarifying-question path for ambiguous queries**, since refusing 10
   of 15 is safe and unhelpful.
 
@@ -271,6 +345,10 @@ kinds, and the notebook says which applies to each number:
   against the measured records in `reports/metrics/`, which are written
   only when the measurement actually ran. CI has no key by design, so it
   cannot recompute these; it can confirm the memo says what was measured.
+
+The full-corpus section is checked the same way by
+`notebooks/08_full_corpus_baseline.py`, and the cost-model figures by
+`notebooks/09_decision_model.py`.
 
 Re-running `python scripts/run_llm_eval.py` regenerates the records, and
 any change in them fails the check until this memo is updated.

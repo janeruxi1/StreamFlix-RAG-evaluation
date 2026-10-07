@@ -19,7 +19,8 @@ front of customers, and how would I know?* This project treats that
 question as the deliverable; the retrieval and generation code exists to
 give the evaluation harness something to measure.
 
-**Headline outcome.** Ship the retrieval layer. Pilot the `cited`
+**Headline outcome.** Retrieval is optional at this size: sending the
+model all 45 articles gives the same answers. Pilot the `cited`
 generation layer with a support agent in the loop. Do not ship the
 `naive` prompt. The cited arm refused **25 of 25** unanswerable questions
 with **0** fabricated citations and **0.984** faithfulness — and 25
@@ -180,9 +181,15 @@ the work.
   wrote the corpus.
 - **The judge is validated on 9 cases and audited on 5 probes.** No
   second validated rater exists, and the judge is lenient on omission.
-- **Generation was only measured on the 571-token context.** The
-  0.967-recall configuration might reduce over-refusal or dilute
-  faithfulness; nothing here says which.
+- **Retrieval is not shown to improve answers at this corpus size.**
+  Sending the model all 45 articles gave the same refusals (25 of 25),
+  the same answer rate (76 of 95) and correctness within noise,
+  +0.034 [-0.041, +0.109]. Retrieval is kept because it costs an eighth
+  as much per query and its context does not grow with the help centre.
+  That is an argument about a larger corpus than this one.
+- **Over-refusal is not fixed and is not retrieval's to fix.** Given
+  every article, the model still refused 13 of the 19 answerable
+  questions it had refused with retrieval.
 - **One model, one run, one synthetic corpus.**
 
 ---
