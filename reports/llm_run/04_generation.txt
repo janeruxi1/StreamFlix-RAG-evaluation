@@ -51,7 +51,7 @@ baseline and make the LLM's advantage look smaller than it is.
     answer rate, in-scope      :  62.1%   (want high)
     over-refusal               :  37.0%
     refusal F1                 :  0.589
-    mean latency               :    1.5 ms
+    mean latency               :    2.5 ms
 
   Two answers, to make its character concrete:
 
@@ -339,7 +339,7 @@ judge.
 
 1. AN EXTRACTIVE BASELINE THE LLM HAS TO BEAT.
    62.1% answer rate in-scope, 56.0% refusal on out-of-scope,
-   F1 0.589, 2 ms per question, zero cost.
+   F1 0.589, 3 ms per question, zero cost.
    Its threshold was tuned on the dev split only. Any LLM arm has to
    beat this to justify its latency and price — "the LLM answers well"
    is not a finding without it.
