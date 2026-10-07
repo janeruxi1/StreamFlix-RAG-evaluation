@@ -205,7 +205,9 @@ src/
   llm/         provider abstraction, credential masking, call budget
 notebooks/     01 corpus · 02 chunking · 03 bake-off · 04 generation
                05 evaluation · 06 judge audit · 07 decision memo
-reports/       decision_memo.md, PROJECT_SUMMARY.md, figures
+               08 full-corpus baseline · 09 decision model
+reports/       decision_memo.md, pilot_design.md, phase_notes.md,
+               PROJECT_SUMMARY.md, figures
                metrics/   measured records from the credentialed run
                llm_run/   that run's output and environment manifest
 scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py
@@ -215,4 +217,4 @@ tests/         395 tests
 Everything runs with **no API key**: CI installs no LLM client and fails
 if a credential is present, proving the pipeline degrades rather than
 stops. The credentialed run is one command, `python scripts/run_llm_eval.py`,
-and costs about $3.
+and costs about $6 the first time and nothing on a rerun.

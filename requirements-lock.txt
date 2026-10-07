@@ -1,0 +1,17 @@
+# Exact versions behind the measured results in reports/metrics/.
+# Python 3.13.12. Taken from reports/llm_run/manifest.json, which
+# scripts/run_llm_eval.py rewrites on every credentialed run.
+#
+#     pip install -r requirements-lock.txt
+#
+# requirements.txt gives the minimum versions; use this file to
+# reproduce the committed numbers.
+
+anthropic==1.0.0
+matplotlib==3.10.9
+numpy==2.4.6
+openai==1.109.1
+pandas==2.3.3
+scikit-learn==1.9.0
+sentence-transformers==6.0.0
+tiktoken==0.14.0
