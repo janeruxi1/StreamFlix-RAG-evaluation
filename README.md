@@ -16,13 +16,15 @@ The work was framed by [`reports/scenario_brief.md`](reports/scenario_brief.md)
 — a stakeholder asking not for an assistant, but for a defensible answer to
 whether one is safe to deploy.
 
-> **Status: all 7 phases complete, and measured end to end.** The
-> recommendation is graded to the evidence: **ship** the retrieval layer,
-> **pilot** the cited generation layer with a person in the loop, and
-> **do not ship** the naive prompt. The cited arm refused 25 of 25
-> unanswerable questions with zero fabricated citations and 0.984
-> faithfulness — and 25 questions can only bound its true refusal rate
-> at 86.7%, which is why it is a pilot and not a launch.
+> **Status: all 9 phases complete, and measured end to end.** The
+> recommendation is graded to the evidence: retrieval is **optional** at
+> this corpus size, **pilot** the cited generation layer with a person
+> in the loop, and **do not ship** the naive prompt. The cited arm
+> refused 25 of 25 unanswerable questions with zero fabricated citations
+> and 0.984 faithfulness — and 25 questions can only bound its true
+> refusal rate at 86.7%, which is why it is a pilot and not a launch.
+> Sending the model all 45 articles with no retrieval gave the same
+> answers (finding 10), so retrieval is kept on cost and headroom.
 
 ---
 
@@ -378,13 +380,15 @@ passes — and this project has none.
 ### Phase 7 — Decision memo, and keeping it honest ✅
 
 The deliverable is [`reports/decision_memo.md`](reports/decision_memo.md).
-**Recommendation: ship the retrieval layer, pilot the `cited` generation
-layer with a support agent in the loop, and do not ship the `naive`
-prompt.**
+**Recommendation: retrieval is optional at this size, pilot the `cited`
+generation layer with a support agent in the loop, and do not ship the
+`naive` prompt.** The first clause read "ship the retrieval layer" until
+Phase 8 tested it against using no retrieval and found a tie.
 
 The three parts rest on different amounts of evidence and are graded to
-match. Retrieval was measured across the full sweep with paired
-inference, multiplicity correction and held-out selection. `cited`
+match. The retrieval configuration was measured across the full sweep
+with paired inference, multiplicity correction and held-out selection,
+and then shown not to change the answers at 45 articles. `cited`
 generation is measured and good — and held at "pilot" by sample size, not
 by its scores: 25 of 25 refusals supports a true rate of at least 86.7%
 and cannot exclude about one unanswerable question in eight being
@@ -591,6 +595,39 @@ lower bound on `cited`'s refusal rate is 86.7%. The memo recommends a
 pilot on that number and says roughly 300 clean out-of-scope questions
 would be needed to put the bound near 99%.
 
+**10. Retrieval is not what makes the answers good.** *(Phase 8)*
+
+The whole help centre fits in one prompt, so the baseline to beat is no
+retriever at all. Same prompt, generator, judge and questions, with the
+decision rule committed before the run
+([`e9bbef6`](https://github.com/janeruxi1/StreamFlix-RAG-evaluation/commit/e9bbef6)):
+
+| | Retrieval | All 45 articles | Difference |
+|---|---:|---:|---:|
+| unanswerable refused | 25 of 25 | 25 of 25 | none |
+| answerable answered | 76 of 95 | 76 of 95 | +0.000 [-0.063, +0.074] |
+| correctness, answerable | 0.715 | 0.749 | +0.034 [-0.041, +0.109] |
+| context per query | 571 tokens | 7,611 tokens | 13.3x |
+
+Nothing separates them on answers. Retrieval stays under the rule, which
+required the simpler system to win outright, and the memo says plainly
+that a tie-goes-to-simpler rule would have returned the other verdict.
+What retrieval buys here is cost and room to grow.
+
+The run also relocated a problem. Retrieval refused 19 answerable
+questions, and the earlier reading blamed missing evidence for about
+half. Given every article the model still refused 13 of those 19, so
+the over-refusal is the prompt's caution and a better retriever would
+not recover it.
+
+**11. The number that looked weak was not the weakest.** *(Phase 9)*
+
+With a cost placed on a wrong answer, 25 of 25 refusals is already
+enough for a moderate cost of error. The uncertain quantity is the
+bad-answer rate, 3 of 76, which moves the system's value 5.8x as much
+as the refusal rate does. The [pilot brief](reports/pilot_design.md)
+sizes the pilot to measure that.
+
 ---
 
 ## Roadmap
@@ -604,7 +641,7 @@ would be needed to put the bound near 99%.
 | 5. Evaluation harness — faithfulness, answer relevancy, context precision/recall | ✅ Complete |
 | 6. Judge audit — bias probes, inter-judge agreement | ✅ Complete |
 | 7. Decision memo + deployment recommendation | ✅ Complete |
-| 8. Full-corpus baseline — does retrieval beat sending all 45 articles with no retrieval? | 🔬 Built; decision rule committed before the run, result pending |
+| 8. Full-corpus baseline — does retrieval beat sending all 45 articles with no retrieval? | ✅ Complete (a tie on answers; see finding 10) |
 | 9. Decision model + pilot design — break-even costs, sample sizes ([brief](reports/pilot_design.md)) | ✅ Complete |
 
 ---

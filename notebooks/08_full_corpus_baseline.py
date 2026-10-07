@@ -24,7 +24,7 @@ Sections
 --------
   A. The comparison, and the rule declared in advance
   B. What sending everything costs
-  C. The two arms, measured
+  C. The two arms, measured, and where they disagree
   D. Verdict
   E. Verification of the memo section
 """
@@ -32,6 +32,7 @@ import importlib.util
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -278,6 +279,36 @@ else:
             "faithfulness_both_answered": _paired(shared, lambda e: e.faithfulness.score),
         }
 
+        # Same headline counts can hide different questions. Which ones
+        # each arm refuses says whether a refusal is retrieval's fault.
+        states = Counter((rag_by[q].is_refusal, full_by[q].is_refusal)
+                         for q in in_scope_ids)
+        agreement = {
+            "both_answered": states[(False, False)],
+            "both_refused": states[(True, True)],
+            "only_retrieval_answered": states[(False, True)],
+            "only_full_corpus_answered": states[(True, False)],
+        }
+        # Phase 5 sorted retrieval's refusals by how much of the evidence
+        # had been retrieved. If missing evidence caused them, supplying
+        # all of it should turn them into answers.
+        def _evidence(e) -> str:
+            recall = e.context_recall or 0
+            return "full" if recall == 1 else ("none" if recall == 0 else "partial")
+
+        refused_by_evidence = {k: {"refused_by_retrieval": 0, "answered_by_full_corpus": 0}
+                               for k in ("full", "partial", "none")}
+        for q in in_scope_ids:
+            if rag_by[q].is_refusal:
+                cell = refused_by_evidence[_evidence(rag_by[q])]
+                cell["refused_by_retrieval"] += 1
+                cell["answered_by_full_corpus"] += int(not full_by[q].is_refusal)
+
+        by_category = {
+            c: _paired([q for q in in_scope_ids if rag_by[q].category == c],
+                       lambda e: e.correctness.score)
+            for c in ("single_hop", "multi_hop", "ambiguous")}
+
         mh011 = {}
         for label, by in (("rag", rag_by), ("full", full_by)):
             e = by.get("mh-011")
@@ -308,6 +339,9 @@ else:
             "full_corpus": full,
             "full_minus_rag": comparisons,
             "n_both_answered": len(shared),
+            "in_scope_agreement": agreement,
+            "retrieval_refusals_by_evidence": refused_by_evidence,
+            "correctness_in_scope_by_category_exploratory": by_category,
             "mh011": mh011,
             "full_corpus_naive_out_of_scope_refused": naive_oos_refused,
             "full_corpus_naive_out_of_scope_n": len(oos_ids),
@@ -379,6 +413,42 @@ print(f"""
   check on whether seeing every article is enough, by itself, for a
   model to notice that none of them answers the question.
 """)
+
+agree = record["in_scope_agreement"]
+rag_refused_n = agree["both_refused"] + agree["only_full_corpus_answered"]
+by_ev = record["retrieval_refusals_by_evidence"]
+lacking_n = by_ev["partial"]["refused_by_retrieval"] + by_ev["none"]["refused_by_retrieval"]
+lacking_answered = (by_ev["partial"]["answered_by_full_corpus"]
+                    + by_ev["none"]["answered_by_full_corpus"])
+print(f"""  Where the two arms disagree, on the {rag['in_scope_n']} answerable questions:
+
+    both answered                    {agree['both_answered']:>4}
+    both refused                     {agree['both_refused']:>4}
+    only retrieval answered          {agree['only_retrieval_answered']:>4}
+    only the full corpus answered    {agree['only_full_corpus_answered']:>4}
+
+  Retrieval refused {rag_refused_n} answerable questions. With every article in the
+  prompt the model still refused {agree['both_refused']} of those {rag_refused_n}. Those are refusals
+  that better retrieval cannot fix, because nothing was missing. The
+  full corpus also refused {agree['only_retrieval_answered']} questions retrieval answered.
+
+  The same {rag_refused_n}, by how much of the evidence retrieval had found:
+
+    {'evidence retrieved':<22}{'refused':>9}{'answered once given everything':>34}
+    {'all of it':<22}{by_ev['full']['refused_by_retrieval']:>9}{by_ev['full']['answered_by_full_corpus']:>34}
+    {'part of it':<22}{by_ev['partial']['refused_by_retrieval']:>9}{by_ev['partial']['answered_by_full_corpus']:>34}
+    {'none of it':<22}{by_ev['none']['refused_by_retrieval']:>9}{by_ev['none']['answered_by_full_corpus']:>34}
+
+  {lacking_n} refusals came without the full evidence in hand. Supplying it
+  turned {lacking_answered} of the {lacking_n} into answers.
+
+  Correctness by question type, full corpus minus retrieval. EXPLORATORY:
+  these three cuts are not part of the rule in Section A, each is a
+  small sample, and they are read after the fact.
+""")
+for cat, d in record["correctness_in_scope_by_category_exploratory"].items():
+    print(f"    {cat:<12} n = {d['n']:<4} {_ci(d)}")
+print()
 
 if record.get("mh011"):
     print("  The planted contradiction (mh-011). With the full corpus both refund")
@@ -468,7 +538,19 @@ claims = [
      f"{full['in_scope_answers_unfaithful']} of {full['in_scope_answered']}"),
     ("context ratio", f"{full['mean_context_tokens_estimated'] / rag['mean_context_tokens_estimated']:.1f}x"),
     ("naive, full corpus", f"refused {record['full_corpus_naive_out_of_scope_refused']} of"),
+    ("refusals that persist", f"{agree['both_refused']} of those {rag_refused_n}"),
+    ("lacking evidence, then answered",
+     f"{lacking_answered} of the {lacking_n}"),
+    ("refused only by the full corpus",
+     f"refused {agree['only_retrieval_answered']} questions retrieval answered"),
+    ("multi-hop, exploratory",
+     _ci(record["correctness_in_scope_by_category_exploratory"]["multi_hop"])),
+    ("cost per 1,000, retrieval", f"${_usd_per_thousand(rag_tokens):.2f}"),
+    ("cost per 1,000, full corpus", f"${_usd_per_thousand(full_tokens):.2f}"),
 ]
+if record.get("mh011", {}).get("full"):
+    claims.append(("mh-011, full corpus",
+                   record["mh011"]["full"]["stance"].replace("_", " ")))
 print(f"\n    {'claim':<34}{'the memo must contain':<46}found")
 print("    " + "-" * 86)
 failed_n = report(MEMO, claims)

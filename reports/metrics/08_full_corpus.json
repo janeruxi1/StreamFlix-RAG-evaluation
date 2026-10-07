@@ -1,5 +1,25 @@
 {
   "arm": "cited",
+  "correctness_in_scope_by_category_exploratory": {
+    "ambiguous": {
+      "ci_high": 0.233333,
+      "ci_low": -0.066667,
+      "difference": 0.066667,
+      "n": 15
+    },
+    "multi_hop": {
+      "ci_high": 0.262562,
+      "ci_low": 0.03,
+      "difference": 0.1375,
+      "n": 20
+    },
+    "single_hop": {
+      "ci_high": 0.095,
+      "ci_low": -0.11,
+      "difference": -0.008333,
+      "n": 60
+    }
+  },
   "faithfulness_margin": 0.05,
   "full_corpus": {
     "answers_citing_a_ground_truth_article": 69,
@@ -60,6 +80,12 @@
     }
   },
   "generation_model": "gpt-4o-mini",
+  "in_scope_agreement": {
+    "both_answered": 70,
+    "both_refused": 13,
+    "only_full_corpus_answered": 6,
+    "only_retrieval_answered": 6
+  },
   "judge": "<LLMJudge name='llm_judge_gpt-4o'>",
   "mh011": {
     "full": {
@@ -104,6 +130,20 @@
     "out_of_scope_n": 25,
     "out_of_scope_refusal_wilson_lower_95": 0.866804,
     "out_of_scope_refused": 25
+  },
+  "retrieval_refusals_by_evidence": {
+    "full": {
+      "answered_by_full_corpus": 4,
+      "refused_by_retrieval": 10
+    },
+    "none": {
+      "answered_by_full_corpus": 1,
+      "refused_by_retrieval": 3
+    },
+    "partial": {
+      "answered_by_full_corpus": 1,
+      "refused_by_retrieval": 6
+    }
   },
   "rule": {
     "faithfulness_not_materially_lower": true,
