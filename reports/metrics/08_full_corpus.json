@@ -1,0 +1,113 @@
+{
+  "arm": "cited",
+  "faithfulness_margin": 0.05,
+  "full_corpus": {
+    "answers_citing_a_ground_truth_article": 69,
+    "answers_citing_an_unknown_article": 0,
+    "correctness_in_scope": 0.749474,
+    "correctness_out_of_scope": 0.8,
+    "faithfulness_answered": 0.971711,
+    "in_scope_answered": 76,
+    "in_scope_answered_by_category": {
+      "ambiguous": {
+        "answered": 5,
+        "n": 15
+      },
+      "multi_hop": {
+        "answered": 20,
+        "n": 20
+      },
+      "single_hop": {
+        "answered": 51,
+        "n": 60
+      }
+    },
+    "in_scope_answers_unfaithful": 2,
+    "in_scope_n": 95,
+    "mean_answer_words": 44.881579,
+    "mean_context_tokens_estimated": 7611.0,
+    "out_of_scope_n": 25,
+    "out_of_scope_refusal_wilson_lower_95": 0.866804,
+    "out_of_scope_refused": 25
+  },
+  "full_corpus_naive_out_of_scope_n": 25,
+  "full_corpus_naive_out_of_scope_refused": 0,
+  "full_corpus_replaces_retrieval": false,
+  "full_minus_rag": {
+    "answered_in_scope": {
+      "ci_high": 0.073684,
+      "ci_low": -0.063421,
+      "difference": 0.0,
+      "n": 95
+    },
+    "correctness_in_scope": {
+      "ci_high": 0.108947,
+      "ci_low": -0.040526,
+      "difference": 0.034211,
+      "n": 95
+    },
+    "correctness_out_of_scope": {
+      "ci_high": 0.0,
+      "ci_low": 0.0,
+      "difference": 0.0,
+      "n": 25
+    },
+    "faithfulness_both_answered": {
+      "ci_high": 0.01072,
+      "ci_low": -0.041673,
+      "difference": -0.013571,
+      "n": 70
+    }
+  },
+  "generation_model": "gpt-4o-mini",
+  "judge": "<LLMJudge name='llm_judge_gpt-4o'>",
+  "mh011": {
+    "full": {
+      "answer": "If you were charged after cancelling your subscription, it is likely that the cancellation did not complete. Charges taken after a confirmed cancellation are eligible for a refund. You can request a refund by contacting support and including the charge date and amount [bill-002].",
+      "correctness": 0.8,
+      "stance": "states_neither"
+    },
+    "rag": {
+      "answer": "If you were charged after cancelling, it likely means the cancellation did not complete. Charges taken after a confirmed cancellation are eligible for a refund; please refer to the \"Refund policy\" for more details [trial-004].",
+      "correctness": 0.8,
+      "stance": "states_neither"
+    }
+  },
+  "n_articles": 45,
+  "n_both_answered": 70,
+  "n_questions": 120,
+  "rag": {
+    "answers_citing_a_ground_truth_article": 72,
+    "answers_citing_an_unknown_article": 0,
+    "correctness_in_scope": 0.715263,
+    "correctness_out_of_scope": 0.8,
+    "faithfulness_answered": 0.984211,
+    "in_scope_answered": 76,
+    "in_scope_answered_by_category": {
+      "ambiguous": {
+        "answered": 5,
+        "n": 15
+      },
+      "multi_hop": {
+        "answered": 19,
+        "n": 20
+      },
+      "single_hop": {
+        "answered": 52,
+        "n": 60
+      }
+    },
+    "in_scope_answers_unfaithful": 3,
+    "in_scope_n": 95,
+    "mean_answer_words": 37.592105,
+    "mean_context_tokens_estimated": 570.641667,
+    "out_of_scope_n": 25,
+    "out_of_scope_refusal_wilson_lower_95": 0.866804,
+    "out_of_scope_refused": 25
+  },
+  "rule": {
+    "faithfulness_not_materially_lower": true,
+    "more_correct_in_scope": false,
+    "refuses_at_least_as_many": true
+  }
+}

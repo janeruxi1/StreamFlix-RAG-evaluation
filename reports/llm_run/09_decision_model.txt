@@ -1,0 +1,198 @@
+==============================================================================
+A. INPUTS — MEASURED AND ASSUMED
+==============================================================================
+
+  Measured, for `llm_cited` (Phase 5 record):
+
+    a  answers an answerable question      76 of 95    80.0%
+    b  an answer is unsupported            3 of 76      3.9%   95% interval [1.4%, 11.0%]
+    r  refuses an unanswerable question    25 of 25   100.0%   95% interval [86.7%, 100.0%]
+
+  Assumed, and varied:
+
+    k  cost of one bad answer, in deflected tickets   [1, 5, 10, 20, 50]
+    p  share of traffic that is unanswerable          [0.05, 0.1, 0.21]
+    f  cost of a refusal, in deflected tickets        0.1
+
+  Value per query, against sending every ticket to a person (zero):
+
+    (1 - p) * [ a * ((1 - b) - b*k) - (1 - a)*f ]  -  p * [ (1 - r)*k + r*f ]
+
+  "Bad" means the judge found a claim the context does not support. The
+  share of traffic that is unanswerable is NOT the golden set's 21%:
+  that mix was designed, and is included only as the pessimistic end.
+
+==============================================================================
+B. WHERE THE SYSTEM STOPS PAYING
+==============================================================================
+
+  Ignore unanswerable questions entirely. Answering ANSWERABLE ones
+  stops paying once a bad answer costs more than this many deflected
+  tickets:
+
+    at the measured bad-answer rate     3.9%     k = 23.7
+    at the top of its interval         11.0%     k = 7.9
+    at the bottom of its interval       1.4%     k = 71.1
+
+  Past that point no refusal rate helps: the system loses on the
+  questions it is supposed to be good at. So the first thing the
+  business has to say is whether one wrong billing answer costs more or
+  less than about 8 tickets' worth of saved effort — and 3 bad
+  answers in 76 cannot place that threshold more precisely than
+  somewhere between 8 and 71.
+
+==============================================================================
+C. THE REFUSAL RATE THE BUSINESS NEEDS
+==============================================================================
+
+  Refusal rate needed to break even, at the measured bad-answer rate (3.9%):
+
+    bad answer costs          p = 5%     p = 10%     p = 21%
+    --------------------------------------------------------
+    k = 1                        any         any         any
+    k = 5                        any         any       56.7%
+    k = 10                     18.0%       61.7%       84.6%
+    k = 20                   89.3% *     95.2% *     98.3% *
+    k = 50                     never       never       never
+
+  Refusal rate needed to break even, at the top of its interval (11.0%):
+
+    bad answer costs          p = 5%     p = 10%     p = 21%
+    --------------------------------------------------------
+    k = 1                        any         any         any
+    k = 5                       3.9%       55.5%       82.6%
+    k = 10                     never       never       never
+    k = 20                     never       never       never
+    k = 50                     never       never       never
+
+    any    pays at every refusal rate
+    never  does not pay even with perfect refusal
+    *      higher than the 86.7% that 25 of 25 has established
+
+  Read down a column. In the base case (k = 10, p = 10%) the system
+  needs to refuse 61.7% of unanswerable questions, and 25 of 25 already
+  shows at least 86.7%. The sample the memo called too small is, for that
+  case, enough. Where the table says "never", it is not the refusal
+  rate that fails.
+
+==============================================================================
+D. WHICH UNCERTAINTY MOVES THE DECISION
+==============================================================================
+
+  Two rates are uncertain: the refusal rate (25 of 25) and the
+  bad-answer rate (3 of 76). Moving each across its own 95% interval,
+  holding the other at its measured value, in the base case:
+
+    value per query at the measured rates              +0.379
+    swing from the refusal rate   [86.7% to 100.0%]     0.132
+    swing from the bad-answer rate [1.4% to 11.0%]     0.762
+
+>>> The bad-answer rate moves the result 5.8x as much as the refusal
+    rate does.
+
+  The memo's headline caveat was the refusal sample. On this model that
+  is the smaller of the two uncertainties. The larger one is how often
+  an answer to an ANSWERABLE question contains an unsupported claim,
+  and it is larger for a plain reason: at p = 10%, nine queries in ten
+  are answerable, so an error rate on that side is multiplied by nine
+  times the traffic.
+
+  Both at their unfavourable ends at once, the base case is worth
+  -0.309 per query; both favourable, +0.585.
+
+  Does the decision survive the uncertainty? Value per query with both
+  rates at their unfavourable ends, by assumption:
+
+    bad answer costs          p = 5%     p = 10%     p = 21%
+    --------------------------------------------------------
+    k = 1                +0.56 holds +0.52 holds +0.43 holds
+    k = 5                +0.20 holds +0.15 holds +0.04 holds
+    k = 10                -0.25 open  -0.31 open  -0.44 open
+    k = 20                -1.15 open  -1.23 open  -1.42 open
+    k = 50               -3.85 fails -4.00 fails -4.34 fails
+
+    holds  positive even at the unfavourable ends: deploy on this evidence
+    open   positive at the measured rates, negative at the unfavourable
+           ends: the evidence cannot decide, and more data would
+    fails  negative at the measured rates: more data will not help
+
+  Of 15 combinations, 6 hold, 6 are open and 3 fail. The pilot is
+  only worth running for the open ones — and what it must tighten
+  there is mostly the bad-answer rate.
+
+==============================================================================
+E. WHAT THE PILOT HAS TO MEASURE
+==============================================================================
+
+  1. THE BAD-ANSWER RATE. In the base case the system breaks even while
+     no more than 7.1% of its answers are unsupported. The measured
+     rate is 3.9% with an upper bound of 11.0%. To bring the upper bound
+     under 7.1%, if the true rate is what was measured, the pilot needs
+     agents to review about 273 drafted answers.
+
+     And a rule for stopping early: 13 or more bad drafts in the first
+     100 puts even the lower end of the interval above 7.1%. At that
+     point more data cannot rescue the base case, and the pilot ends.
+
+  2. THE REFUSAL RATE. The base case needs 61.7%. A clean run of
+     7 unanswerable tickets establishes that; 25 already have.
+     Nothing further is needed here unless a bad answer costs far more
+     than assumed.
+
+  3. WHETHER IT HELPS AT ALL. Neither rate says the assistant improves
+     support. That needs a controlled comparison: tickets handled with
+     a drafted answer against tickets handled without. To detect a lift
+     in first-contact resolution from 70% to 73% (two-sided, 5%
+     significance, 80% power) takes 3,551 tickets per arm if tickets are
+     randomised individually.
+
+     Randomising by AGENT is cleaner, because an agent who has seen
+     drafts cannot unsee them. It costs precision: at 50 tickets per
+     agent and an intra-agent correlation of 0.05, the design effect is
+     3.45, so 12,251 tickets per arm — 24,502 in total, about
+     25 days at 1,000 tickets a day.
+
+  The resolution baseline, the smallest lift worth detecting, the
+  correlation and the ticket volume are placeholders. They are inputs
+  to replace with the support team's figures, and the notebook
+  recomputes everything when they change.
+
+==============================================================================
+F. VERIFICATION — THE PILOT BRIEF SAYS WHAT THIS NOTEBOOK COMPUTES
+==============================================================================
+
+    claim                             the brief must contain                        found
+    --------------------------------------------------------------------------------------
+    answer rate                       76 of 95                                      yes
+    bad answers                       3 of 76                                       yes
+    bad-answer interval               [1.4%, 11.0%]                                 yes
+    refusals                          25 of 25                                      yes
+    refusal lower bound               86.7%                                         yes
+    break-even k, measured            k = 23.7                                      yes
+    break-even k, unfavourable        k = 7.9                                       yes
+    refusal needed, base case         61.7%                                         yes
+    swing from refusal rate           0.132                                         yes
+    swing from bad-answer rate        0.762                                         yes
+    ratio of swings                   5.8x                                          yes
+    value at measured rates           +0.379                                        yes
+    value at unfavourable ends        -0.309                                        yes
+    combinations                      6 hold, 6 are open and 3 fail                 yes
+    bad-answer ceiling                7.1%                                          yes
+    drafts to review                  273 drafted answers                           yes
+    early stop                        13 or more bad drafts in the first 100        yes
+    tickets per arm, individual       3,551 tickets per arm                         yes
+    design effect                     3.45                                          yes
+    tickets per arm, by agent         12,251 tickets per arm                        yes
+    total tickets                     24,502 in total                               yes
+    duration                          25 days                                       yes
+
+  All 22 figures in reports\pilot_design.md match, recomputed live.
+
+    claim                             the memo must contain                         found
+    --------------------------------------------------------------------------------------
+    bad-answer interval               [1.4%, 11.0%]                                 yes
+    ratio of swings                   5.8x                                          yes
+    refusal needed, base case         61.7%                                         yes
+    drafts to review                  273 drafted answers                           yes
+
+  All 4 figures the memo takes from this phase match.

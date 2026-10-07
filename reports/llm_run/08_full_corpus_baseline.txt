@@ -1,0 +1,138 @@
+==============================================================================
+A. THE COMPARISON, AND THE RULE DECLARED IN ADVANCE
+==============================================================================
+
+  retrieval arm    `cited` prompt, BM25 over sections at depth 15
+  full-corpus arm  `cited` prompt, all 45 articles, no retrieval
+
+  Same prompt, same generator, same judge, same 120 questions. The only
+  thing that differs is what the model is given to read.
+
+  THE RULE. Sending the full corpus REPLACES retrieval only if all three
+  hold:
+
+    1. it refuses at least as many of the 25 unanswerable questions
+    2. it is more correct on the 95 answerable ones, with a paired
+       interval that excludes zero
+    3. on questions both arms answer, its faithfulness is not lower by
+       more than 0.05 (the interval's lower end stays above -0.05)
+
+  Otherwise retrieval stays. The rule is asymmetric on purpose: the full
+  corpus is the simpler system, so it wins ties on engineering grounds,
+  but it has to clear safety first and it costs more per query.
+
+==============================================================================
+B. WHAT SENDING EVERYTHING COSTS  (live)
+==============================================================================
+
+                      context tokens   per 1,000 queries
+  retrieval                      571               $0.15
+  full corpus                  7,611               $1.21
+
+  The full corpus is 13.3x the context. At this size that is still
+  about a dollar per thousand queries, so cost alone does not rule it
+  out. What cost does do is scale: every article added to the help
+  centre is paid for on every query, while retrieval's context stays the
+  size of its depth. At 45 articles the gap is 13x; at ten times the
+  corpus it is 133x.
+
+  Token counts are estimates (words x 1.3); prices are list prices for
+  the default generator and will drift. The figure is for comparing the
+  two arms, not for budgeting.
+
+==============================================================================
+C. THE TWO ARMS, MEASURED
+==============================================================================
+
+  Calls if nothing is cached: 240 generations (~$0.29) and up to
+  240 judge calls (~$2.57). The judge reads the full corpus once per
+  answered question, which is where the money goes; the retrieval arm's
+  judgements are already cached from Phase 5.
+
+  Judge <LLMJudge name='llm_judge_gpt-4o'>: 100% on the validation suite.
+
+  rag_cited: generating over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  rag_cited: judging ...
+    judged 40/120 ...
+    judged 80/120 ...
+    judged 120/120 ...
+  full_cited: generating over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+  full_cited: judging ...
+    judged 40/120 ...
+    judged 80/120 ...
+    judged 120/120 ...
+  full_naive: generating over 120 questions ...
+    40/120 ...
+    80/120 ...
+    120/120 ...
+
+  Saved -> reports\metrics\08_full_corpus.json
+
+  measured in this run — generator gpt-4o-mini, judge <LLMJudge name='llm_judge_gpt-4o'>
+
+                                             retrieval   full corpus
+  ------------------------------------------------------------------
+  unanswerable questions refused              25 of 25      25 of 25
+  answerable questions answered               76 of 95      76 of 95
+    of the ambiguous ones                      5 of 15       5 of 15
+  answers with an unsupported claim                  3             2
+  faithfulness, answered                         0.984         0.972
+  correctness, answerable                        0.715         0.749
+  correctness, unanswerable                      0.800         0.800
+  answers citing a correct source                   72            69
+  context tokens per query                         571         7,611
+
+  Paired, full corpus minus retrieval, on the same questions:
+
+    answered, answerable         +0.000 [-0.063, +0.074]
+    correctness, answerable      +0.034 [-0.041, +0.109]
+    correctness, unanswerable    +0.000 [+0.000, +0.000]
+    faithfulness, both answered  -0.014 [-0.042, +0.011]   (n = 70)
+
+  The naive prompt with the full corpus refused 0 of 25 unanswerable
+  questions; with retrieval it refused 0 of 25 (Phase 5). That row is the
+  check on whether seeing every article is enough, by itself, for a
+  model to notice that none of them answers the question.
+
+  The planted contradiction (mh-011). With the full corpus both refund
+  articles are certainly in the context:
+
+    rag   states_neither  correctness 0.80
+          If you were charged after cancelling, it likely means the cancellation did not complete. Charges taken after a confirmed cancellation are eligible for a refund; please refer to the "Refund policy" for more details [trial-004].
+
+    full  states_neither  correctness 0.80
+          If you were charged after cancelling your subscription, it is likely that the cancellation did not complete. Charges taken after a confirmed cancellation are eligible for a refund. You can request a refund by contacting support and including the charge date and amount [bill-002].
+
+==============================================================================
+D. VERDICT
+==============================================================================
+
+  The rule from Section A, applied:
+
+    1. refuses at least as many unanswerable questions   yes
+    2. more correct on answerable ones, interval > 0     NO
+    3. faithfulness not lower by more than 0.05          yes
+
+>>> RETRIEVAL STAYS.
+
+  The full corpus does not clear the rule: more correct in scope.
+  On correctness the two cannot be told apart at this sample size.
+  Retrieval stays because the challenger did not win, not because it
+  lost: the case for retrieval at this corpus size is cost and
+  headroom (Section B), not answer quality.
+
+  This is a result about one comparison on 120 questions, one generator and
+  one judge, stated with the intervals above rather than as a ranking.
+
+==============================================================================
+E. VERIFICATION — THE MEMO SAYS WHAT WAS MEASURED
+==============================================================================
+
+  The memo has no "## Is retrieval needed at all?" section yet, so there is
+  nothing to check. Once it does, every figure below must appear in it.
