@@ -82,6 +82,9 @@
   },
   "refusals": {
     "llm_cited": {
+      "in_scope_answered": 76,
+      "in_scope_answers_below_half_correct": 2,
+      "in_scope_answers_unfaithful": 3,
       "in_scope_refused": 19,
       "in_scope_refused_by_category": {
         "ambiguous": {
@@ -106,6 +109,9 @@
       "out_of_scope_refused": 25
     },
     "llm_naive": {
+      "in_scope_answered": 95,
+      "in_scope_answers_below_half_correct": 3,
+      "in_scope_answers_unfaithful": 12,
       "in_scope_refused": 0,
       "in_scope_refused_by_category": {
         "ambiguous": {

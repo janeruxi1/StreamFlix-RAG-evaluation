@@ -793,7 +793,17 @@ if arm_reports:
                        if e.result.is_out_of_scope and not e.is_refusal]
         oos_unsupported = sum(1 for e in oos_answers if e.faithfulness.score < 0.7)
         lower = wilson_lower_bound(oos_refused, n_oos)
+        # Counts, not means, for the decision model in Phase 9: an
+        # expected-value calculation needs "how many answers were wrong",
+        # and a mean correctness score of 0.87 does not say.
+        in_scope_answers = [e for e in evs
+                            if not e.is_refusal and not e.result.is_out_of_scope]
         refusal_detail[name] = {
+            "in_scope_answered": len(in_scope_answers),
+            "in_scope_answers_below_half_correct": sum(
+                1 for e in in_scope_answers if e.correctness.score < 0.5),
+            "in_scope_answers_unfaithful": sum(
+                1 for e in in_scope_answers if e.faithfulness.score < 0.7),
             "in_scope_refused": len(in_scope_refused),
             "in_scope_refused_with_full_evidence": full,
             "in_scope_refused_with_partial_evidence": part,

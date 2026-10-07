@@ -237,3 +237,17 @@ def test_write_metrics_is_byte_stable(tmp_path):
     assert p1.read_bytes().endswith(b"}\n")
     assert b"\r" not in p1.read_bytes()
     assert json.loads(p1.read_text(encoding="utf-8")) == payload
+
+
+def test_full_corpus_estimate_grows_with_the_corpus():
+    """The point of the baseline's cost line: every token of corpus is
+    paid for on every call, in both the generator and the judge."""
+    from src.evaluation.judged_arms import (estimate_full_corpus_usd,
+                                            generation_usd_per_query)
+
+    gen, judging = estimate_full_corpus_usd(120, 8_000)
+    gen_big, judging_big = estimate_full_corpus_usd(120, 80_000)
+    assert 0 < gen < judging                 # the judge model is the expensive one
+    assert gen_big > 5 * gen and judging_big > 5 * judging
+    assert estimate_full_corpus_usd(0, 8_000) == (0.0, 0.0)
+    assert generation_usd_per_query(8_000) > generation_usd_per_query(500)

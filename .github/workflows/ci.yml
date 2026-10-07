@@ -64,6 +64,8 @@ jobs:
           python notebooks/05_evaluation.py > /dev/null
           python notebooks/06_judge_analysis.py > /dev/null
           python notebooks/07_decision_memo.py > /dev/null
+          python notebooks/08_full_corpus_baseline.py > /dev/null
+          python notebooks/09_decision_model.py > /dev/null
 
       - name: Assert the pipeline ran without any credential
         run: |
