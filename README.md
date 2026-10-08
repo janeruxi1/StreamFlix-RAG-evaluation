@@ -10,7 +10,7 @@ measuring whether it works. The deliverable is not the assistant. It is a
 question, *is this safe to put in front of customers, and how would we
 know?*, with every number in it checked by CI.
 
-**[Try the live demo](https://janeruxi1-streamflix-rag-evaluation.streamlit.app/)**: every measured answer beside the judge's
+**[Try the live demo]([https://janeruxi1-streamflix-rag-evaluation.streamlit.app/](https://janeruxi1-streamflix-rag-evaluation.streamlit.app/))**: every measured answer beside the judge's
 verdict and its stated reason, replayed from the paid run with no API key.
 
 ## The recommendation
