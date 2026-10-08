@@ -1,5 +1,6 @@
 # StreamFlix RAG: is a support assistant safe to deploy?
 
+[![Live demo](https://img.shields.io/badge/Streamlit-Live%20Demo-FF4B4B?logo=streamlit)](https://janeruxi1-streamflix-rag-evaluation.streamlit.app/)
 [![CI](https://github.com/janeruxi1/StreamFlix-RAG-evaluation/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/janeruxi1/StreamFlix-RAG-evaluation/actions/workflows/ci.yml)
 
 A retrieval-augmented question-answering system over a streaming
@@ -9,6 +10,9 @@ measuring whether it works. The deliverable is not the assistant. It is a
 question, *is this safe to put in front of customers, and how would we
 know?*, with every number in it checked by CI.
 
+**[Try the live demo](https://janeruxi1-streamflix-rag-evaluation.streamlit.app/)**: every measured answer beside the judge's
+verdict and its stated reason, replayed from the paid run with no API key.
+
 ## The recommendation
 
 - **Retrieval is optional at this size.** Sending the model all 45
@@ -16,7 +20,8 @@ know?*, with every number in it checked by CI.
   the pilot on cost and headroom.
 - **Pilot the `cited` prompt with a support agent in the loop.** It is
   good on the sample it was measured on, and the sample is small.
-- **Do not ship the `naive` prompt.** It never refuses.
+- **Do not ship the `naive` prompt.** It answers most questions the help
+  centre cannot, usually with something it made up.
 
 ## Results
 
@@ -26,7 +31,7 @@ paired bootstrap.
 
 | Question | Result |
 |---|---|
-| Does it refuse what it cannot answer? | `cited` refused **25 of 25**; `naive` refused **0 of 25**. Twenty-five questions bound the true rate only at **86.7%** or better. |
+| Does it refuse what it cannot answer? | `cited` refused **25 of 25**. `naive` declined **9 of 25** and answered the other 16, 14 of them with unsupported claims. Twenty-five questions bound `cited`'s true rate only at **86.7%** or better. |
 | Does it make things up? | **0** fabricated citations. **3 of 76** answers had an unsupported claim (faithfulness 0.984). |
 | What does the caution cost? | It declined **19 of 95** answerable questions. Correctness on answerable questions is +0.160 [+0.102, +0.219] higher for `naive`. |
 | Is retrieval needed at all? | **A tie.** All 45 articles in the prompt, against BM25 retrieval: same refusals, same answer rate, correctness +0.034 [-0.041, +0.109], at 13.3x the context. |
@@ -37,8 +42,8 @@ paired bootstrap.
 ![Refusal against helpfulness for each prompt](reports/figures/04_refusal_tradeoff.png)
 
 *Left: each prompt's refusal rate on unanswerable questions against its
-answer rate on answerable ones. `naive` answers everything, including
-what it should not. Right: the same tension in a non-LLM baseline as one
+answer rate on answerable ones. `naive` answers every answerable question
+and most of the unanswerable ones. Right: the same tension in a non-LLM baseline as one
 threshold moves.*
 
 ## How the evidence is kept honest
@@ -53,11 +58,18 @@ threshold moves.*
   [committed](https://github.com/janeruxi1/StreamFlix-RAG-evaluation/commit/e9bbef6)
   before the run. The result was a tie, which undercuts the retrieval
   work in this repository, and the memo leads with it.
+- **Errors are corrected in the open.** Building the demo put the
+  answers side by side and showed the refusal check had missed nine
+  declines by the `naive` prompt, which had been reported as refusing
+  0 of 25. The check is now scored against 88 hand-labelled answers, the
+  memo carries the corrected figures and says what changed.
 - **Small samples are reported as bounds.** 25 of 25 is stated with its
   Wilson lower bound, because the count alone reads as a guarantee.
 - **The memo cannot drift from the measurements.** Three notebooks check
-  97 figures in the memo and the pilot brief against the records in
-  `reports/metrics/`, and CI fails if any of them stops matching.
+  100 figures in the memo and the pilot brief against the records in
+  `reports/metrics/`, and a fourth checks that the demo's per-question
+  record adds up to the same totals. CI fails if any of them stops
+  matching.
 - **Reruns reproduce exactly.** Model responses are cached locally, so a
   second run replays the measured records byte for byte with no API
   calls. The cache is not committed; the records and run logs are.
@@ -82,13 +94,14 @@ with only the scientific stack installed.
 pip install numpy pandas scikit-learn matplotlib pytest
 python -c "from src.corpus.build import write_corpus, write_golden_set; write_corpus(); write_golden_set()"
 
-pytest tests/ -q                           # 395 tests
+pytest tests/ -q                           # 511 tests (8 need streamlit)
 python notebooks/07_decision_memo.py       # checks the memo against the records
 python notebooks/08_full_corpus_baseline.py
 python notebooks/09_decision_model.py
+python notebooks/10_measured_answers.py    # checks the demo's record the same way
 
-pip install -r requirements.txt            # for the demo and the model run
-streamlit run app/streamlit_app.py         # answers shown with their evidence
+pip install -r app/requirements.txt        # streamlit and numpy are all it needs
+streamlit run app/streamlit_app.py         # the demo, replaying the measured run
 ```
 
 To re-measure with a model, which costs roughly $6 at list prices the
@@ -110,7 +123,7 @@ numbers.
 | [Decision memo](reports/decision_memo.md) | The recommendation and its evidence. Start here. |
 | [Pilot design](reports/pilot_design.md) | The cost model, break-even points and sample sizes. |
 | [Scenario brief](reports/scenario_brief.md) | The stakeholder request the work answers. |
-| [Phase notes](reports/phase_notes.md) | What each of the nine phases built and every finding in order, including the ones later revised. |
+| [Phase notes](reports/phase_notes.md) | What each phase built and every finding in order, including the ones later revised. |
 | [Project summary](reports/PROJECT_SUMMARY.md) | A catalogue of what was built and found, with the corrections made along the way. |
 
 ## Layout
@@ -118,16 +131,16 @@ numbers.
 ```
 src/         corpus, retrieval, llm (provider, cache, key handling),
              generation, evaluation (metrics, judge, statistics, decision model)
-notebooks/   01 to 09, each a .py source of truth with a generated .ipynb
-tests/       395 tests
+notebooks/   01 to 10, each a .py source of truth with a generated .ipynb
+tests/       511 tests
 reports/     memo, pilot brief, measured records, run logs, figures
 scripts/     the credentialed run, notebook build, repository checks
-app/         Streamlit demo
+app/         Streamlit demo, with its own two-line requirements file
 ```
 
 ## Related projects
 
 Part of a three-project series sharing the StreamFlix universe:
 
-- **[A/B Test Analysis](https://github.com/janeruxi1/ab-testing-project)**: experiment design, sequential testing, CUPED, sensitivity analysis
-- **[Churn & Retention](https://github.com/janeruxi1/StreamFlix-churn-retention)**: churn modelling, causal uplift, cost-aware targeting policy
+- **[A/B Test Analysis](https://github.com/janeruxi1/StreamFlix-AB-Testing)**: experiment design, sequential testing, CUPED, sensitivity analysis
+- **[Churn & Retention](https://github.com/janeruxi1/StreamFlix-Churn-Retention)**: churn modelling, causal uplift, cost-aware targeting policy

@@ -9,8 +9,11 @@ Every panel is computed by the same `src/` modules the notebooks and CI
 use, so nothing here is a special demo path that could disagree with the
 measured results.
 
-Three modes:
+Four modes:
 
+  Measured results     replay of the credentialed run: every measured
+                       answer with the judge's score and reason, read
+                       from reports/metrics/. Calls no model, needs no key
   Ask                  type any question, see retrieval, the answer, and
                        every judge-free check that applies to it
   Golden set           pick a labelled question and see the evaluation
@@ -18,8 +21,9 @@ Three modes:
   What the harness     the audit that decides whether any judge score is
   measures             worth reading at all
 
-Runs with no API key: the extractive baseline and every judge-free metric
-work offline. A credential adds the LLM arms and the semantic judge.
+Runs with no API key: the replay, the extractive baseline and every
+judge-free metric work offline. A credential adds live LLM arms and the
+semantic judge to the other three modes.
 
     streamlit run app/streamlit_app.py
 """
@@ -49,9 +53,12 @@ def _find_project_root(start: Path) -> Path:
 PROJECT_ROOT = _find_project_root(Path(__file__).resolve().parent)
 sys.path.insert(0, str(PROJECT_ROOT))
 
+import json
+
 import streamlit as st
 
 from src.corpus.build import load_corpus, load_golden_set
+from src.evaluation.demo_record import ARMS, FAITHFUL, arm_summary, load_record
 from src.evaluation.judge import LexicalJudge, get_judge
 from src.evaluation.judge_bias import (
     measure_length_bias,
@@ -89,9 +96,28 @@ def load_questions():
     return load_golden_set()
 
 
+@st.cache_data
+def load_measured():
+    """The replay record and the aggregate records it is checked against."""
+    metrics = PROJECT_ROOT / "reports" / "metrics"
+
+    def read(name):
+        path = metrics / name
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    return (load_record(metrics / "10_measured_answers.json"),
+            read("03_retrieval_arms.json"), read("05_judged_arms.json"),
+            read("06_judge_audit.json"), read("08_full_corpus.json"))
+
+
 articles, chunks, retriever = build_system()
 golden = load_questions()
 has_key, blocker = provider_ready()
+record, R03, R05, R06, R08 = load_measured()
+
+MEASURED = "Measured results"
+MODES = ([MEASURED] if record else []) + [
+    "Ask anything", "Golden set", "Is the judge trustworthy?"]
 
 
 # ---------------------------------------------------------------------
@@ -101,8 +127,7 @@ with st.sidebar:
     st.title("🔍 Support RAG")
     st.caption("Retrieval-augmented answering, with the evaluation attached.")
 
-    mode = st.radio("Mode", ["Ask anything", "Golden set", "Is the judge "
-                             "trustworthy?"])
+    mode = st.radio("Mode", MODES)
 
     st.divider()
     st.subheader("Configuration")
@@ -114,12 +139,18 @@ with st.sidebar:
         **Golden set** {len(golden)} questions
         """
     )
-    st.caption(
-        "Chosen on the Pareto frontier under a 600-token context budget — "
-        "not the top of the recall table. The highest-recall configuration "
-        "costs 4.5× more context for a difference that fails a significance "
-        "test."
-    )
+    if R03:
+        st.caption(
+            f"Chosen under a 600-token context budget, not from the top of "
+            f"the recall table. The top configuration reaches "
+            f"{R03['top_of_table']['recall']:.3f} recall for "
+            f"{R03['top_vs_shipping']['context_ratio']:.1f}× the context. "
+            f"Sending all {len(articles)} articles with no retrieval gave "
+            f"the same answers, so retrieval is optional at this size."
+        )
+    else:
+        st.caption("Chosen under a 600-token context budget, not from the "
+                   "top of the recall table.")
 
     st.divider()
     if has_key:
@@ -131,9 +162,10 @@ with st.sidebar:
     else:
         st.info("Running without an API key")
         st.caption(
-            f"{blocker}\n\nThe extractive baseline and every judge-free "
-            f"metric work offline. That is deliberate: the harness degrades "
-            f"rather than stops."
+            "**Measured results** replays the paid run and needs no key. "
+            "The other modes run live: without a key they use the "
+            "extractive, non-LLM baseline and the lexical judge. That is "
+            "deliberate: the harness degrades rather than stops."
         )
         answerer_choice = "extractive (no LLM)"
 
@@ -214,14 +246,192 @@ def show_evaluation(result, reference: str | None = None):
 
 
 # ---------------------------------------------------------------------
+# Mode: Measured results (replay of the credentialed run)
+# ---------------------------------------------------------------------
+STATUS = {"refusal": "🛑 Refused", "answer": "💬 Answered",
+          "partial_refusal": "⚠️ Partial refusal (counted as an answer)"}
+
+
+def show_measured_answer(arm: str, entry: dict, question: dict):
+    """One arm's measured answer, its citations and the judge's verdict."""
+    meta = ARMS[arm]
+    out_of_scope = question["category"] == "out_of_scope"
+    st.markdown(f"#### {meta['title']}")
+    st.caption(f"{meta['context']} · {meta['note']}")
+    st.markdown(f"**{STATUS[entry['status']]}**")
+
+    if out_of_scope and entry["is_refusal"]:
+        st.success("Correct: it declined a question the help centre cannot answer.")
+    elif out_of_scope:
+        st.error("It answered a question the help centre cannot answer.")
+    elif entry["is_refusal"]:
+        st.warning("It declined a question the help centre can answer.")
+
+    st.info(entry["answer"])
+
+    if entry["citations"]:
+        truth = set(question["gt_article_ids"])
+        st.markdown("Cites " + ", ".join(
+            f"`{c}`{' ✅' if c in truth else ''}" for c in entry["citations"]))
+        if entry["citations_not_in_context"]:
+            st.error("Cites an article it was never shown: "
+                     + ", ".join(entry["citations_not_in_context"]))
+    else:
+        st.caption("No citations.")
+
+    if entry["correctness"] is None:
+        st.caption("Not sent to the judge.")
+        return
+    c1, c2 = st.columns(2)
+    if entry["is_refusal"] or entry["faithfulness"] is None:
+        c1.metric("faithfulness", "n/a")
+    else:
+        flag = "" if entry["faithfulness"] >= FAITHFUL else " ⚠️"
+        c1.metric("faithfulness", f"{entry['faithfulness']:.2f}{flag}")
+    c2.metric("correctness", f"{entry['correctness']:.2f}")
+    with st.expander("Why the judge scored it this way"):
+        if entry["is_refusal"] or entry["faithfulness"] is None:
+            st.caption("Faithfulness does not apply: a refusal makes no claims "
+                       "to check against the context.")
+        else:
+            st.markdown(f"**Faithfulness.** {entry['faithfulness_reason']}")
+        st.markdown(f"**Correctness against the reference.** {entry['correctness_reason']}")
+
+
+if mode == MEASURED:
+    st.title("What was measured")
+    st.caption(
+        f"Real answers from `{record['generation_model']}`, scored by the "
+        f"`gpt-4o` judge, replayed from the committed record of the "
+        f"credentialed run. Nothing on this page calls a model, and CI "
+        f"checks that these rows add up to the numbers in the decision memo."
+    )
+
+    naive = arm_summary(record, "rag_naive", golden)
+    cited = arm_summary(record, "rag_cited", golden)
+    full = arm_summary(record, "full_cited", golden)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("cited: unanswerable questions refused",
+              f"{cited['out_of_scope_refused']} of {cited['out_of_scope_n']}")
+    c2.metric("naive: unanswerable questions refused",
+              f"{naive['out_of_scope_refused']} of {naive['out_of_scope_n']}")
+    c3.metric("cited: answerable questions answered",
+              f"{cited['in_scope_answered']} of {cited['in_scope_n']}")
+    c4.metric("cited: answers with an unsupported claim",
+              f"{cited['in_scope_answers_unfaithful']} of {cited['in_scope_answered']}")
+    if R05:
+        bound = R05["refusals"]["llm_cited"]["out_of_scope_refusal_wilson_lower_95"]
+        st.caption(
+            f"A clean sweep on {cited['out_of_scope_n']} questions is a bound, "
+            f"not a guarantee: it supports a true refusal rate of at least "
+            f"{bound:.1%}. That is why the memo recommends a pilot with an "
+            f"agent in the loop and not a launch. Without retrieval, with "
+            f"all {len(articles)} articles in the prompt, the same prompt "
+            f"refused {full['out_of_scope_refused']} of {full['out_of_scope_n']} "
+            f"and answered {full['in_scope_answered']} of {full['in_scope_n']}."
+        )
+
+    rows = record["answers"]
+
+    def _disagree(q):
+        r = rows[q["question_id"]]
+        return (q["category"] != "out_of_scope"
+                and r["rag_cited"]["is_refusal"] != r["full_cited"]["is_refusal"])
+
+    def _unsupported(q):
+        e = rows[q["question_id"]]["rag_cited"]
+        return (not e["is_refusal"] and e["faithfulness"] is not None
+                and e["faithfulness"] < FAITHFUL)
+
+    VIEWS = {
+        "Unanswerable questions (the safety test)": (
+            lambda q: q["category"] == "out_of_scope",
+            "The help centre is silent on these. The cited prompt declines "
+            "all of them. The naive prompt declines some in its own words "
+            "and answers the rest, usually with something it made up: the "
+            "list shows which."),
+        "The planted contradiction": (
+            lambda q: q["question_id"] == "mh-011",
+            "Two articles state different refund windows, 14 days and 30. "
+            "The right answer says so. Watch what each prompt does, and "
+            "what the judge makes of it."),
+        "Answerable, but the cited prompt declined": (
+            lambda q: q["category"] != "out_of_scope"
+            and rows[q["question_id"]]["rag_cited"]["is_refusal"],
+            "The price of caution: questions the help centre can answer "
+            "that the cited prompt refused."),
+        "Cited answers the judge found unsupported": (
+            _unsupported,
+            "A citation makes an answer checkable, not correct. These "
+            "scored below the faithfulness threshold."),
+        "Retrieval and the full corpus disagree": (
+            _disagree,
+            "Questions one arm answered and the other refused, with the "
+            "same prompt and a different context."),
+        f"All {len(golden)} questions": (lambda q: True, ""),
+    }
+    view = st.selectbox("Show", list(VIEWS))
+    keep, explanation = VIEWS[view]
+    subset = [q for q in golden if keep(q)]
+    st.caption(f"{len(subset)} question(s). {explanation}")
+    def _label(q):
+        r = rows[q["question_id"]]
+        did = lambda arm: "declined" if r[arm]["is_refusal"] else "answered"
+        return (f"[{q['question_id']} · {q['category']}] {q['question']}  "
+                f"(naive {did('rag_naive')}, cited {did('rag_cited')})")
+
+    picked = st.selectbox("Question", subset, format_func=_label)
+
+    if picked:
+        row = rows[picked["question_id"]]
+        st.subheader(picked["question"])
+        if picked["category"] == "out_of_scope":
+            st.warning(
+                "**Unanswerable by design.** A confident answer here is the "
+                "most expensive failure this system can produce."
+            )
+        if picked.get("reference_answer"):
+            with st.expander("Reference answer (written with the question, "
+                             "before any retrieval code)"):
+                st.write(picked["reference_answer"])
+
+        hits = retriever.search(picked["question"], DEPTH)
+        got = {h.chunk.article_id for h in hits}
+        if picked["gt_article_ids"]:
+            st.markdown("**Sources that answer it:** " + " · ".join(
+                f"{'✅' if a in got else '❌'} `{a}`"
+                for a in picked["gt_article_ids"]))
+            st.caption(
+                f"✅ retrieved at depth {DEPTH}, ❌ missed. Retrieval hands "
+                f"the model about {context_tokens(hits)} estimated tokens."
+            )
+        else:
+            st.markdown("**Sources that answer it:** none.")
+
+        for col, arm in zip(st.columns(3), ("rag_naive", "rag_cited", "full_cited")):
+            with col:
+                show_measured_answer(arm, row[arm], picked)
+
+        with st.expander("The naive prompt with all 45 articles and no "
+                         "retrieval (generated, not judged)"):
+            show_measured_answer("full_naive", row["full_naive"], picked)
+
+
+# ---------------------------------------------------------------------
 # Mode: Ask anything
 # ---------------------------------------------------------------------
-if mode == "Ask anything":
+elif mode == "Ask anything":
     st.title("Ask the help centre")
     st.caption(
         "Anything the corpus does not cover *should* produce a refusal. "
         "Try 'How do I buy a gift card?' — deliberately uncovered."
     )
+    if not has_key:
+        st.caption(
+            "Live mode, no API key: the answer below comes from the "
+            "extractive, non-LLM baseline. The model's answers are in "
+            "**Measured results**."
+        )
 
     question = st.text_input("Question", "How many streams does Premium allow?")
 
@@ -261,6 +471,12 @@ elif mode == "Golden set":
         "retrieval code existed. A golden set written afterwards describes "
         "your system rather than testing it."
     )
+    if not has_key:
+        st.caption(
+            "Live mode, no API key: the answer below comes from the "
+            "extractive, non-LLM baseline. The model's answers are in "
+            "**Measured results**."
+        )
 
     category = st.selectbox(
         "Category",
@@ -329,6 +545,19 @@ else:
         __import__("src.llm.provider", fromlist=["get_provider"]).get_provider())
 
     report = validate_judge(judge)
+
+    if R05 and R06 and not has_key:
+        jv, lp = R05["judge_validation"], R06["length_probes"]
+        st.success(
+            f"**In the credentialed run the judge was `gpt-4o`.** It scored "
+            f"{jv['overall_accuracy']:.0%} on these {jv['n_cases']} cases "
+            f"before any of its scores were used. On the length probes it "
+            f"scored the longer answer lower on {lp['n_material']} of "
+            f"{lp['n']} (mean {lp['mean_delta']:+.3f}), naming specific added "
+            f"claims as the reason. This page runs live, and without a key "
+            f"it runs the lexical judge below: the stand-in the memo "
+            f"compares against, shown failing the same gate."
+        )
 
     st.header("1. Accuracy on cases with known verdicts")
     c1, c2, c3 = st.columns(3)

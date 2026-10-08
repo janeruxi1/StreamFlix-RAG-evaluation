@@ -112,21 +112,22 @@ Generator `gpt-4o-mini`, judged by `gpt-4o`, on all 120 questions.
 | Arm | Refuses out-of-scope | Answers in-scope | Faithfulness (answered) | Correctness (all) |
 |---|---:|---:|---:|---:|
 | extractive baseline | 56.0% | 62.1% | — | 0.268 |
-| `naive` | 0.0% | 100.0% | 0.764 | 0.795 |
+| `naive` | 36.0% | 100.0% | 0.811 | 0.795 |
 | `cited` | 100.0% | 80.0% | 0.984 | 0.733 |
 
 **1. The LLM earns its cost.** Judged correctness of 0.733 against 0.268
 for an extractive answerer that copies sentences out of the context.
 
-**2. The refusal instruction is what separates the arms.** `naive`
-answered every unanswerable question, and **23 of 25** of those answers
-contain claims the judge found unsupported. `cited` refused all 25, and
-scores a refusal F1 of 0.889.
+**2. The refusal instruction is what separates the arms.** With no such
+instruction, `naive` declined 9 of 25 unanswerable questions in its own
+words and answered the other 16. **14 of the 16** answers contain claims
+the judge found unsupported, among them an invented procedure for a data
+request. `cited` refused all 25, and scores a refusal F1 of 0.889.
 
 **3. When both arms answer, they are equally faithful.** The headline
-faithfulness gap, 0.984 against 0.764, is mostly composition: each arm is
+faithfulness gap, 0.984 against 0.811, is mostly composition: each arm is
 averaged over the questions *it* chose to answer, and `naive` chose to
-answer the unanswerable ones. On the **76 questions both** arms answered
+answer most of the unanswerable ones. On the **76 questions both** arms answered
 it is **0.984 against 0.970**, a difference of **-0.015 [-0.040, +0.010]**
 (`naive` minus `cited`). `cited` is not a more careful writer. It is a
 writer that knows when to stop.
@@ -203,9 +204,11 @@ certainly in the context, `cited` still states neither window. That
 failure belongs to generation and to the help centre, not to retrieval.
 
 **It did not make the unsafe prompt safe.** Given everything, `naive`
-refused 0 of 25 unanswerable questions, the same as with retrieval.
-Seeing the whole help centre does not make a model say that none of it
-answers the question. The instruction does.
+refused 6 of 25 unanswerable questions, against 9 of 25 with retrieval.
+Seeing the whole help centre did not make the model readier to say that
+none of it answers the question. With more to draw on it asserted more,
+including a price for an add-on the help centre never mentions. The
+instruction is what produces the refusals.
 
 **One exploratory signal.** On the 20 multi-hop questions the full
 corpus scored +0.138 [+0.030, +0.263] higher on correctness. That cut
@@ -229,7 +232,7 @@ is a floor test; the lexical judge it replaced scores 50% on the same
 suite. On the bias probes the longer answer scored lower on
 **2 of 3 probes** (**-0.222** mean), and the judge's stated reasons name
 specific added claims rather than length. Checked against real answers
-(`naive` averages 67 words, `cited` 38 words), a per-word penalty
+(`naive` averages 70 words, `cited` 38 words), a per-word penalty
 predicts a faithfulness gap of **-0.171** and the data shows -0.015. So
 the judge is strict about elaboration and does not charge by the word.
 Its agreement with the lexical judge is kappa -0.465, which counts
@@ -239,6 +242,16 @@ against the lexical judge; no second validated rater exists.
 scored the two arms **0.80 and 0.80** against a reference answer that
 names the conflict, though neither answer does. It checks the claims an
 answer makes, and a missing caveat is not a false claim.
+
+**The refusal counts rest on a pattern check that was wrong once.** An
+earlier version of this memo said `naive` refused 0 of 25. The check
+recognised the refusal sentence the cited prompts are told to use and
+missed the ways `naive` declines in its own words. Reading the answers
+side by side in the demo exposed it; no test had. The check is now scored
+against 88 hand-labelled answers and agrees with all of them, and the
+figures above are the corrected ones. The numbers for `cited` did not
+change. Refusals are still detected by pattern, so the same kind of miss
+is possible on answers nobody has read.
 
 **One model, one run, one corpus.** Temperature 0, a single generator
 version, a synthetic help centre. None of this says anything about a
@@ -326,7 +339,12 @@ and the early-stopping rule are in [`pilot_design.md`](pilot_design.md).
   is ruled out as the fix: with all of it, the answer rate stayed at
   76 of 95. Recovering those refusals means changing what the prompt
   accepts as enough evidence, and then re-measuring the 25 of 25,
-  because that is the number such a change puts at risk.
+  because that is the number such a change puts at risk. There is a
+  candidate already. The `grounded` prompt, told only to answer from the
+  context, declined 20 of 25 unanswerable questions and answered
+  93 of 95 answerable ones. It has not been judged, so nothing here says
+  whether its extra answers are supported, and 5 answered unanswerable
+  questions is more than a pilot should accept without that.
 - **A clarifying-question path for ambiguous queries**, since refusing 10
   of 15 is safe and unhelpful.
 

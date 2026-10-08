@@ -1,8 +1,8 @@
 {
   "completed": true,
   "generation_model": "gpt-4o-mini",
-  "git_commit": "e9bbef6",
-  "git_dirty": false,
+  "git_commit": "3f91ea4",
+  "git_dirty": true,
   "judge_model": "gpt-4o",
   "judged_arms": [
     "naive",
@@ -13,32 +13,32 @@
     "01_corpus_construction": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 8.9
+      "seconds": 9.8
     },
     "02_chunking_embedding": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 57.5
+      "seconds": 50.7
     },
     "03_retrieval_bakeoff": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 64.3
+      "seconds": 62.0
     },
     "04_generation": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 9.3
+      "seconds": 27.2
     },
     "05_evaluation": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 8.0
+      "seconds": 31.7
     },
     "06_judge_analysis": {
       "exit_code": 0,
       "new_api_calls": 0,
-      "seconds": 4.4
+      "seconds": 6.2
     },
     "07_decision_memo": {
       "exit_code": 0,
@@ -47,13 +47,18 @@
     },
     "08_full_corpus_baseline": {
       "exit_code": 0,
-      "new_api_calls": 390,
-      "seconds": 587.7
+      "new_api_calls": 0,
+      "seconds": 8.1
     },
     "09_decision_model": {
       "exit_code": 0,
       "new_api_calls": 0,
       "seconds": 0.4
+    },
+    "10_measured_answers": {
+      "exit_code": 0,
+      "new_api_calls": 0,
+      "seconds": 3.7
     }
   },
   "packages": {
@@ -71,7 +76,7 @@
   "platform": "Windows-11-10.0.26200-SP0",
   "provider": "openai",
   "python": "3.13.12",
-  "started_utc": "2026-10-07T05:06:38Z",
+  "started_utc": "2026-10-08T00:15:56Z",
   "tiktoken_available": true,
-  "total_new_api_calls": 390
+  "total_new_api_calls": 0
 }

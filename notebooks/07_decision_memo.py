@@ -164,6 +164,7 @@ if not records_present:
 else:
     ship = R05["runs"][SHIP_ARM]
     ship_ref = R05["refusals"][SHIP_ARM]
+    con_ref = R05["refusals"][CONTRAST_ARM]
     print(f"""
   RETRIEVE with {STRATEGY} + BM25 at depth {DEPTH}, costing
            ~{ctx_tokens:.0f} estimated context tokens per query.
@@ -175,7 +176,9 @@ else:
            it gave. That is enough to put it in front of support agents
            and not enough to put it in front of customers unattended.
 
-  DO NOT   ship the `{CONTRAST_ARM.replace('llm_', '')}` prompt in any form. It never refuses.
+  DO NOT   ship the `{CONTRAST_ARM.replace('llm_', '')}` prompt in any form. It answered {con_ref['out_of_scope_n'] - con_ref['out_of_scope_refused']} of {con_ref['out_of_scope_n']}
+           questions the help centre cannot answer, {con_ref['out_of_scope_answers_judged_unsupported']} of them with
+           claims the judge found unsupported.
 
   The line between "pilot" and "ship" is drawn by sample size, not by
   the scores. {ship_ref['out_of_scope_refused']} of {ship_ref['out_of_scope_n']} supports a true refusal rate of at least {ship_ref['out_of_scope_refusal_wilson_lower_95']:.1%};
@@ -273,9 +276,10 @@ else:
   1. The LLM earns its cost over the baseline. Judged correctness
      {ship['correctness']:.3f} against {base['correctness']:.3f} for the extractive answerer.
 
-  2. The refusal instruction is what separates the arms. `{CONTRAST_ARM}` answered
-     all {contrast_ref['out_of_scope_n']} unanswerable questions, and {contrast_ref['out_of_scope_answers_judged_unsupported']} of those answers contain
-     claims the judge found unsupported. `{SHIP_ARM}` refused all {ship_ref['out_of_scope_n']}.
+  2. The refusal instruction is what separates the arms. `{CONTRAST_ARM}` declined
+     {contrast_ref['out_of_scope_refused']} of {contrast_ref['out_of_scope_n']} unanswerable questions in its own words and answered the
+     other {contrast_ref['out_of_scope_n'] - contrast_ref['out_of_scope_refused']}; {contrast_ref['out_of_scope_answers_judged_unsupported']} of those answers contain claims the judge found
+     unsupported. `{SHIP_ARM}` refused all {ship_ref['out_of_scope_n']}.
 
   3. When both arms answer, they are equally faithful. The headline
      gap ({ship['faithfulness_answered']:.3f} vs {contrast['faithfulness_answered']:.3f}) is composition: each arm is averaged over
@@ -439,6 +443,18 @@ if R04 is not None:
         ("cited: answer length", "record 04", f"{a_ship['mean_answer_words']:.0f} words"),
     ]
 
+if R04 is not None and R05 is not None and "llm_grounded" in R04["arms"]:
+    # The un-judged rung the memo names as the candidate for cutting
+    # over-refusal. Counts, so they read the way the memo states them.
+    g = R04["arms"]["llm_grounded"]
+    n_oos = R05["refusals"][SHIP_ARM]["out_of_scope_n"]
+    claims += [
+        ("grounded: OOS declined", "record 04",
+         f"declined {round(g['refusal_rate_out_of_scope'] * n_oos)} of {n_oos} unanswerable"),
+        ("grounded: in-scope answered", "record 04",
+         f"{round(g['answer_rate_in_scope'] * len(in_scope))} of {len(in_scope)} answerable"),
+    ]
+
 if R05 is not None:
     jv = R05["judge_validation"]
     s, c, b = (R05["runs"][SHIP_ARM], R05["runs"][CONTRAST_ARM],
@@ -459,8 +475,11 @@ if R05 is not None:
          f"{s['failure_modes'].get('generation_failure', 0)} of {s['n_answered']}"),
         ("naive: faithfulness", "record 05", f"{c['faithfulness_answered']:.3f}"),
         ("naive: correctness", "record 05", f"{c['correctness']:.3f}"),
+        ("naive: OOS declined", "record 05",
+         f"declined {cr['out_of_scope_refused']} of {cr['out_of_scope_n']} unanswerable"),
         ("naive: OOS unsupported", "record 05",
-         f"{cr['out_of_scope_answers_judged_unsupported']} of {cr['out_of_scope_n']}"),
+         f"{cr['out_of_scope_answers_judged_unsupported']} of the "
+         f"{cr['out_of_scope_n'] - cr['out_of_scope_refused']}"),
         ("baseline: judged correctness", "record 05", f"{b['correctness']:.3f}"),
         ("same questions: n", "record 05", f"{same['n_both_answered']} questions both"),
         ("same questions: faithfulness", "record 05",
@@ -550,7 +569,8 @@ keep it honest.
    with paired inference and held-out selection, and Phase 8 found it
    optional at this corpus size. Pilot cited generation: measured,
    on a sample too small to bound the failure that matters. Do not
-   ship the naive prompt: it never refuses.
+   ship the naive prompt: it answers most questions it has no evidence
+   for.
 
 2. SMALL SAMPLES ARE STATED AS BOUNDS.
    A clean sweep on 25 questions is reported with its Wilson lower

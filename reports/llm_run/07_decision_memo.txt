@@ -2,8 +2,11 @@
 A. THE RECOMMENDATION
 ==============================================================================
 
-  SHIP     the retrieval layer: markdown_section + BM25 at depth 15,
-           costing ~571 estimated context tokens per query.
+  RETRIEVE with markdown_section + BM25 at depth 15, costing
+           ~571 estimated context tokens per query.
+           Retrieval is OPTIONAL at this corpus size. Sending all 45 articles
+           gave the same refusals and answer rate, and correctness
+           +0.034 [-0.041, +0.109] (Phase 8). It is kept on cost and headroom.
 
   PILOT    the `cited` generation layer with a person in the loop.
            It refused 25 of 25 unanswerable questions, invented no
@@ -11,7 +14,9 @@ A. THE RECOMMENDATION
            it gave. That is enough to put it in front of support agents
            and not enough to put it in front of customers unattended.
 
-  DO NOT   ship the `naive` prompt in any form. It never refuses.
+  DO NOT   ship the `naive` prompt in any form. It answered 16 of 25
+           questions the help centre cannot answer, 14 of them with
+           claims the judge found unsupported.
 
   The line between "pilot" and "ship" is drawn by sample size, not by
   the scores. 25 of 25 supports a true refusal rate of at least 86.7%;
@@ -65,18 +70,19 @@ C. EVIDENCE — GENERATION  (recorded)
   arm                    refuse OOS  answer in  faithful  correct  fab. cites
   ---------------------------------------------------------------------------
   extractive_baseline         56.0%      62.1%     0.810    0.268           0
-  llm_naive                    0.0%     100.0%     0.764    0.795           0
+  llm_naive                   36.0%     100.0%     0.811    0.795           0
   llm_cited                  100.0%      80.0%     0.984    0.733           0
 
   1. The LLM earns its cost over the baseline. Judged correctness
      0.733 against 0.268 for the extractive answerer.
 
-  2. The refusal instruction is what separates the arms. `llm_naive` answered
-     all 25 unanswerable questions, and 23 of those answers contain
-     claims the judge found unsupported. `llm_cited` refused all 25.
+  2. The refusal instruction is what separates the arms. `llm_naive` declined
+     9 of 25 unanswerable questions in its own words and answered the
+     other 16; 14 of those answers contain claims the judge found
+     unsupported. `llm_cited` refused all 25.
 
   3. When both arms answer, they are equally faithful. The headline
-     gap (0.984 vs 0.764) is composition: each arm is averaged over
+     gap (0.984 vs 0.811) is composition: each arm is averaged over
      the questions IT chose to answer. On the 76 both answered,
      0.984 vs 0.970: -0.015 [-0.040, +0.010] (llm_naive minus llm_cited).
 
@@ -86,12 +92,13 @@ C. EVIDENCE — GENERATION  (recorded)
      The two effects nearly cancel overall (+0.062 [-0.007, +0.133]),
      which is why a single correctness number would have hidden both.
 
-  5. Over-refusal is partly a retrieval problem. `llm_cited` declined 19 of
+  5. Over-refusal looks like a retrieval problem. `llm_cited` declined 19 of
      95 answerable questions; the evidence was fully retrieved for
      10, partly for 6 and not at all for 3. So 9 of the 19 were
-     declined without the full evidence in hand, which no prompt
-     fixes. And 10 of the 15 ambiguous questions were refused — the
-     same category retrieval is weakest on.
+     declined without the full evidence in hand. Whether missing
+     evidence CAUSED them is a separate question, and Phase 8 tests
+     it by supplying every article. 10 of the 15 ambiguous questions
+     were refused.
 
 ==============================================================================
 D. HOW MUCH THE EVIDENCE CAN BEAR
@@ -176,8 +183,10 @@ F. VERIFICATION — EVERY MEMO NUMBER CHECKED
   cited: in-scope answer rate     record 04  80.0%                                   yes
   cited: fabricated citations     record 04  0 fabricated citations                  yes
   cited: refusal F1               record 04  0.889                                   yes
-  naive: answer length            record 04  67 words                                yes
+  naive: answer length            record 04  70 words                                yes
   cited: answer length            record 04  38 words                                yes
+  grounded: OOS declined          record 04  declined 20 of 25 unanswerable          yes
+  grounded: in-scope answered     record 04  93 of 95 answerable                     yes
   judge validation                record 05  100% on 9 validation cases              yes
   cited: OOS refused              record 05  25 of 25 out-of-scope                   yes
   cited: Wilson lower bound       record 05  86.7%                                   yes
@@ -185,9 +194,10 @@ F. VERIFICATION — EVERY MEMO NUMBER CHECKED
   cited: answers given            record 05  76 answers                              yes
   cited: correctness              record 05  0.733                                   yes
   cited: below threshold          record 05  3 of 76                                 yes
-  naive: faithfulness             record 05  0.764                                   yes
+  naive: faithfulness             record 05  0.811                                   yes
   naive: correctness              record 05  0.795                                   yes
-  naive: OOS unsupported          record 05  23 of 25                                yes
+  naive: OOS declined             record 05  declined 9 of 25 unanswerable           yes
+  naive: OOS unsupported          record 05  14 of the 16                            yes
   baseline: judged correctness    record 05  0.268                                   yes
   same questions: n               record 05  76 questions both                       yes
   same questions: faithfulness    record 05  0.984 against 0.970                     yes
@@ -206,7 +216,7 @@ F. VERIFICATION — EVERY MEMO NUMBER CHECKED
   kappa vs lexical judge          record 06  kappa -0.465                            yes
   length: predicted gap           record 06  -0.171                                  yes
 
-  All 53 memo claims match: 11 recomputed live, 42 against the measured records.
+  All 56 memo claims match: 11 recomputed live, 45 against the measured records.
 
   The two kinds of check are not the same strength, and the split is
   shown rather than hidden. A live claim is reproduced from this
@@ -224,10 +234,12 @@ keep it honest.
 
 1. THE RECOMMENDATION HAS THREE PARTS, AND THEY REST ON DIFFERENT
    AMOUNTS OF EVIDENCE.
-   Ship retrieval: measured across the full sweep with paired
-   inference and held-out selection. Pilot cited generation: measured,
+   Retrieval: the configuration is measured across the full sweep
+   with paired inference and held-out selection, and Phase 8 found it
+   optional at this corpus size. Pilot cited generation: measured,
    on a sample too small to bound the failure that matters. Do not
-   ship the naive prompt: it never refuses.
+   ship the naive prompt: it answers most questions it has no evidence
+   for.
 
 2. SMALL SAMPLES ARE STATED AS BOUNDS.
    A clean sweep on 25 questions is reported with its Wilson lower
@@ -237,7 +249,9 @@ keep it honest.
    The contradiction no arm surfaces is one question and ranks first.
 
 4. EVERY NUMBER IS CHECKED, AND THE CHECK SAYS HOW.
-   53 claims: 11 recomputed live, 42 against committed records.
+   56 claims: 11 recomputed live, 45 against committed records.
    CI fails on drift in either.
 
-PROJECT COMPLETE at 7 of 7 phases.
+The memo's seven phases are complete. Phases 8 and 9 test its
+conclusions: 08 against using no retrieval at all, 09 against a stated
+cost of error.

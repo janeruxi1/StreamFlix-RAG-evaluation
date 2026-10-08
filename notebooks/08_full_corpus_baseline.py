@@ -360,6 +360,10 @@ if record is None:
     raise SystemExit(0)
 
 rag, full, cmp_ = record["rag"], record["full_corpus"], record["full_minus_rag"]
+_r05_path = METRICS_DIR / "05_judged_arms.json"
+naive_rag_refused = (
+    json.loads(_r05_path.read_text(encoding="utf-8"))["refusals"]["llm_naive"]["out_of_scope_refused"]
+    if _r05_path.exists() else "an unrecorded number")
 
 
 def _ci(d: dict) -> str:
@@ -409,7 +413,7 @@ print(f"""
     faithfulness, both answered  {_ci(cmp_['faithfulness_both_answered'])}   (n = {record['n_both_answered']})
 
   The naive prompt with the full corpus refused {record['full_corpus_naive_out_of_scope_refused']} of {full['out_of_scope_n']} unanswerable
-  questions; with retrieval it refused 0 of {full['out_of_scope_n']} (Phase 5). That row is the
+  questions; with retrieval it refused {naive_rag_refused} of {full['out_of_scope_n']} (Phase 5). That row is the
   check on whether seeing every article is enough, by itself, for a
   model to notice that none of them answers the question.
 """)

@@ -130,10 +130,10 @@
       "in_scope_refused_with_full_evidence": 0,
       "in_scope_refused_with_no_evidence": 0,
       "in_scope_refused_with_partial_evidence": 0,
-      "out_of_scope_answers_judged_unsupported": 23,
+      "out_of_scope_answers_judged_unsupported": 14,
       "out_of_scope_n": 25,
-      "out_of_scope_refusal_wilson_lower_95": 0.0,
-      "out_of_scope_refused": 0
+      "out_of_scope_refusal_wilson_lower_95": 0.202477,
+      "out_of_scope_refused": 9
     }
   },
   "retrieval": {
@@ -186,15 +186,16 @@
       "context_recall": 0.881579,
       "correctness": 0.795417,
       "failure_modes": {
-        "answered_oos": 25,
+        "answered_oos": 16,
+        "correct_refusal": 9,
         "generation_failure": 9,
         "ok": 83,
         "retrieval_failure": 3
       },
       "faithfulness_all": 0.764426,
-      "faithfulness_answered": 0.764426,
+      "faithfulness_answered": 0.811391,
       "n": 120,
-      "n_answered": 120,
+      "n_answered": 111,
       "relevancy": 0.97
     }
   },

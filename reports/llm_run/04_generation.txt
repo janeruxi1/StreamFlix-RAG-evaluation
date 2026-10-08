@@ -51,7 +51,7 @@ baseline and make the LLM's advantage look smaller than it is.
     answer rate, in-scope      :  62.1%   (want high)
     over-refusal               :  37.0%
     refusal F1                 :  0.589
-    mean latency               :    2.5 ms
+    mean latency               :    4.1 ms
 
   Two answers, to make its character concrete:
 
@@ -139,11 +139,11 @@ D. THE BAKE-OFF
   answerer                refuseOOS  answerIN     F1  overRef  citePrec  tokens
   -----------------------------------------------------------------------------
   llm_cited                  100.0%     80.0%  0.889    17.4%     1.000     786
+  llm_grounded                80.0%     97.9%  0.880     1.1%       —       721
   llm_grounded_refusal       100.0%     74.7%  0.855    22.8%       —       773
   llm_strict                 100.0%     73.7%  0.848    23.9%     1.000     797
   extractive_baseline         56.0%     62.1%  0.589    37.0%     1.000     —
-  llm_naive                    0.0%    100.0%  0.000     0.0%       —       686
-  llm_grounded                 0.0%    100.0%  0.000     0.0%       —       721
+  llm_naive                   36.0%    100.0%  0.529     0.0%       —       686
 
   Saved -> reports\metrics/04_generation_arms.json
 
@@ -162,7 +162,7 @@ questions. Reading either column alone gets the wrong answer.
   Most conservative : llm_cited
                       refuses 100.0% of OOS, but answers only 80.0% in-scope
   Most helpful      : llm_naive
-                      answers 100.0% in-scope, refuses only 0.0% of OOS
+                      answers 100.0% in-scope, refuses only 36.0% of OOS
 
   Those are different products. Which one ships is a business decision
   about the relative cost of a wrong answer versus an unhelpful one — for
@@ -202,11 +202,11 @@ questions. Reading either column alone gets the wrong answer.
   direction for the error to run.
 
     llm_cited              partial-refusal rate 0.8%
+    llm_grounded           partial-refusal rate 0.0%
     llm_grounded_refusal   partial-refusal rate 0.8%
     llm_strict             partial-refusal rate 0.0%
     extractive_baseline    partial-refusal rate 0.0%
-    llm_naive              partial-refusal rate 0.0%
-    llm_grounded           partial-refusal rate 0.0%
+    llm_naive              partial-refusal rate 0.8%
 
   Saved -> reports\figures/04_refusal_tradeoff.png
 
@@ -229,12 +229,12 @@ assertion.
     fabricated citations: 0
 
   llm_naive
-    answered            : 120
+    answered            : 111
     with citations      : 0 (0%)
     fabricated citations: 0
 
   llm_grounded
-    answered            : 120
+    answered            : 98
     with citations      : 0 (0%)
     fabricated citations: 0
 
@@ -296,7 +296,7 @@ can be separated mechanically — before any judge is involved.
     full evidence retrieved    :  76 questions
     partial evidence           :  16
     NO ground-truth evidence   :   3
-      of which answered anyway :   3  <- upstream failures that
+      of which answered anyway :   2  <- upstream failures that
                                        will look like hallucination
 
   llm_grounded_refusal
@@ -339,7 +339,7 @@ judge.
 
 1. AN EXTRACTIVE BASELINE THE LLM HAS TO BEAT.
    62.1% answer rate in-scope, 56.0% refusal on out-of-scope,
-   F1 0.589, 3 ms per question, zero cost.
+   F1 0.589, 4 ms per question, zero cost.
    Its threshold was tuned on the dev split only. Any LLM arm has to
    beat this to justify its latency and price — "the LLM answers well"
    is not a finding without it.

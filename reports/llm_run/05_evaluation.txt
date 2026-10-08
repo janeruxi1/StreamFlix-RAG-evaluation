@@ -251,7 +251,7 @@ runs the judge over LLM answers.
   answerer               answered  faithful  relevant  correct  gen fail  ret fail  ans OOS
   -----------------------------------------------------------------------------------------
   extractive_baseline          70     0.810     0.547    0.268        26         0       11
-  llm_naive                   120     0.764     0.970    0.795         9         3       25
+  llm_naive                   111     0.811     0.970    0.795         9         3       16
   llm_cited                    76     0.984     0.962    0.733         3         0        0
 
   How to read the columns:
@@ -308,8 +308,8 @@ runs the judge over LLM answers.
     llm_naive
       in-scope refused      : 0  (evidence fully retrieved for 0, partly for 0, not at all for 0)
       by question type      : single_hop 0/60, multi_hop 0/20, ambiguous 0/15
-      out-of-scope refused  : 0 of 25
-      out-of-scope answered : 25, of which 23 contain claims the judge found unsupported
+      out-of-scope refused  : 9 of 25  -> true rate at least 20.2% (95% Wilson lower bound)
+      out-of-scope answered : 16, of which 14 contain claims the judge found unsupported
 
     llm_cited
       in-scope refused      : 19  (evidence fully retrieved for 10, partly for 6, not at all for 3)
@@ -407,8 +407,8 @@ PHASE 5 VERDICT
    them lets a system that answers nothing report a perfect score.
 
 6. THE LLM ARMS ARE JUDGED, BY A JUDGE THAT PASSED ITS GATE.
-   llm_naive      faithfulness 0.764 over 120 answered, correctness 0.795,
-                  25 of 25 out-of-scope answered
+   llm_naive      faithfulness 0.811 over 111 answered, correctness 0.795,
+                  16 of 25 out-of-scope answered
    llm_cited      faithfulness 0.984 over 76 answered, correctness 0.733,
                   0 of 25 out-of-scope answered
    These are the first answer-quality readings in the project. They
