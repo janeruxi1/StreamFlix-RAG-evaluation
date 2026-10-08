@@ -62,7 +62,7 @@ that confidently answers one is worse than one that says "I don't know."
 | Arm | Refuses out-of-scope | Answers in-scope | Faithfulness (answered) | Correctness |
 |---|---:|---:|---:|---:|
 | extractive baseline | 56.0% | 62.1% | 0.810 | 0.268 |
-| `naive` | 0.0% | 100.0% | 0.764 | 0.795 |
+| `naive` | 36.0% | 100.0% | 0.811 | 0.795 |
 | `cited` | 100.0% | 80.0% | 0.984 | 0.733 |
 
 **The judge**
@@ -83,22 +83,26 @@ that confidently answers one is worse than one that says "I don't know."
 | 1 | 45-article corpus + 120-question golden set | BM25 gets **93.3%** recall@5 on single-hop — the floor is high, so per-category reporting is mandatory |
 | 2 | 5 chunking strategies, 2 embedding backends, vector store | `fixed_token_256` was a silent no-op: the same words as `whole_article`, one chunk per article |
 | 3 | 48-configuration bake-off (64 with the transformer arm) | recall@k is monotone in k, so **no quality metric can select depth** — it's a cost decision |
-| 4 | 5 prompt variants + extractive baseline + refusal detection | "use only the context" produced **zero** refusals; explicit permission to refuse produced 25 of 25 |
-| 5 | Evaluation harness with a validated judge | the faithfulness gap between arms was **composition**: 0.984 vs 0.764 overall, 0.984 vs 0.970 on the same questions |
+| 4 | 5 prompt variants + extractive baseline + refusal detection | "use only the context" got 20 of 25 unanswerable questions declined; an explicit refusal instruction got 25 of 25 (first reported as 0 of 25: see the corrections) |
+| 5 | Evaluation harness with a validated judge | the faithfulness gap between arms was **composition**: 0.984 vs 0.811 overall, 0.984 vs 0.970 on the same questions |
 | 6 | Judge audit | the "length bias" was the probes: the judge named the added claims, and real answers 28 words apart show no penalty |
-| 7 | Decision memo + verification | 53 memo claims checked: 11 recomputed live, 42 against committed records |
+| 7 | Decision memo + verification | 56 memo claims checked: 11 recomputed live, 45 against committed records |
+| 10 | Per-question record + replay demo | putting the answers on screen exposed a refusal-check error that no test had caught |
 
 ---
 
 ## Five findings worth the reader's time
 
-**1. A safe-looking prompt that never refuses.** `grounded` tells the
-model to answer only from the context. It answered all 25 unanswerable
-questions. Restricting the *source* of an answer is not the same as
-permitting the model to decline, and only the second changed behaviour.
+**1. Restricting the source is most of a refusal instruction, and not
+all of it.** `grounded` tells the model to answer only from the context.
+It declined 20 of 25 unanswerable questions in its own words, and still
+answered 93 of 95 answerable ones. The rungs with an explicit refusal instruction got 25 of 25 and answered
+between 70 and 76 of the 95. (This finding first read
+"`grounded` never refuses". That was the refusal check missing every
+decline it worded differently from the canonical sentence.)
 
 **2. The headline faithfulness comparison was comparing different
-questions.** `cited` 0.984 against `naive` 0.764 looks like a careful
+questions.** `cited` 0.984 against `naive` 0.811 looks like a careful
 writer against a careless one. Each arm is averaged over the questions it
 chose to answer. On the 76 both answered it is 0.984 against 0.970,
 −0.015 [−0.040, +0.010]. `cited` is not more careful; it knows when to
@@ -169,6 +173,15 @@ the work.
 - **After the credentialed run:** the judge audit used prompt length as a
   proxy for answer length. Measured, the shortest instruction (`naive`)
   writes the longest answers.
+- **Building the demo:** the refusal check had been written against the
+  sentence the cited prompts are told to use, and it missed the ways a
+  prompt with no refusal instruction declines. `naive` was reported as
+  refusing 0 of 25 unanswerable questions and `grounded` 0 of 25; read by
+  hand they declined 9 and 20. Nothing about `cited` changed. The check
+  is now validated against 88 hand-labelled answers. The lesson is the
+  one this project keeps relearning: a count is a claim about a
+  detector, and the detector has to be checked against something a
+  person has read.
 - **After the credentialed run:** the memo quoted ~591 context tokens and
   the bake-off 571 for the same configuration, from two different
   multipliers. There is now one definition.
@@ -211,7 +224,7 @@ reports/       decision_memo.md, pilot_design.md, phase_notes.md,
                metrics/   measured records from the credentialed run
                llm_run/   that run's output and environment manifest
 scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py
-tests/         395 tests
+tests/         511 tests
 ```
 
 Everything runs with **no API key**: CI installs no LLM client and fails

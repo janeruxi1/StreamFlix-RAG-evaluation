@@ -25,15 +25,15 @@
       "uncited_answer_rate": 0.0
     },
     "llm_grounded": {
-      "answer_rate_in_scope": 1.0,
+      "answer_rate_in_scope": 0.978947,
       "citation_precision": null,
       "fabricated_citations": 0,
-      "mean_answer_words": 35.641667,
+      "mean_answer_words": 38.72449,
       "mean_prompt_tokens_estimated": 721.483333,
-      "over_refusal_rate": 0.0,
+      "over_refusal_rate": 0.01087,
       "partial_refusal_rate": 0.0,
-      "refusal_f1": 0.0,
-      "refusal_rate_out_of_scope": 0.0,
+      "refusal_f1": 0.880473,
+      "refusal_rate_out_of_scope": 0.8,
       "uncited_answer_rate": 1.0
     },
     "llm_grounded_refusal": {
@@ -52,12 +52,12 @@
       "answer_rate_in_scope": 1.0,
       "citation_precision": null,
       "fabricated_citations": 0,
-      "mean_answer_words": 67.316667,
+      "mean_answer_words": 69.72973,
       "mean_prompt_tokens_estimated": 686.408333,
       "over_refusal_rate": 0.0,
-      "partial_refusal_rate": 0.0,
-      "refusal_f1": 0.0,
-      "refusal_rate_out_of_scope": 0.0,
+      "partial_refusal_rate": 0.008333,
+      "refusal_f1": 0.529412,
+      "refusal_rate_out_of_scope": 0.36,
       "uncited_answer_rate": 1.0
     },
     "llm_strict": {

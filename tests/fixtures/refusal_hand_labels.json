@@ -1,0 +1,709 @@
+{
+ "about": "Model answers from the credentialed run, each read and labelled by hand: did the answer decline to answer (true) or assert an answer (false)? An answer that disclaims and then asserts anyway is labelled false. Covers every answer to the 25 unanswerable questions from the three arms whose prompt has no refusal instruction, plus answerable-question cases that negate or deny something. Used to validate the pattern-based refusal check.",
+ "labels": [
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "sh-009",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, only one promotion can apply at a time. A new code does not extend or combine with an active promotion."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "sh-025",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, playing a downloaded title offline does not consume a simultaneous stream."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "sh-043",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, StreamFlix does not support 2016 Samsung TVs. It is compatible with Samsung models from 2018 and later."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "sh-056",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, you cannot use StreamFlix on Xbox 360. The app was retired in 2024 and is no longer supported, meaning it will not install or allow sign-in."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "mh-008",
+   "category": "multi_hop",
+   "declined": false,
+   "answer": "No, deleting your account will not stop the billing. You must cancel any active subscription separately before deleting your account, as deleting does not automatically stop billing."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-001",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include information about purchasing a StreamFlix gift card. To find out how to buy a gift card, you may need to visit the official StreamFlix website or contact their customer support for assistance."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-002",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not currently offer a direct gifting option for subscriptions. However, you could consider purchasing a prepaid gift card for the service, if available, or simply provide your mum with the funds to subscribe herself. Make sure to check the terms and conditions of any gift card or payment method you choose to use."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-003",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Currently, StreamFlix does not offer accounts specifically for businesses. The service is designed for individual and family use, allowing up to 5 profiles per account for personal viewing. If you have further questions or need assistance with a personal account, feel free to ask!"
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-004",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not currently offer a specific education plan. The available plans are Basic, Standard, and Premium, which provide different levels of simultaneous streams and video quality. You can choose the plan that best fits your school's needs based on the number of users and the desired video quality."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-005",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To show StreamFlix in your café, you would need to ensure that you have the appropriate licensing and permissions to publicly display content from the service. StreamFlix is typically intended for personal use, and public screenings may require a separate commercial license. It's best to contact StreamFlix directly or review their terms of service to understand the requirements for public viewing in a commercial setting."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-006",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Yes, StreamFlix is designed to be accessible and should work with screen readers. Users can navigate the app and access features using voice-over technology, making it easier for individuals with visual impairments to enjoy the content. However, the specific performance may vary depending on the device and screen reader being used."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-007",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "The provided context does not mention audio descriptions specifically for blind viewers. However, audio descriptions are typically available for certain titles and can be enabled in the audio settings of the streaming service. It's best to check the specific title's audio options to see if audio descriptions are offered."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-008",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not typically offer live sports, including live football. It primarily focuses on on-demand streaming of movies and TV shows. For live sports, you may need to look for dedicated sports streaming services or networks that broadcast live events."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-009",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not specify whether live events or concerts are streamed. It primarily focuses on casting, streaming limits, profiles, downloads, and account management. For information on streaming live events or concerts, you may need to refer to additional resources or the service's official website."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-010",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Sharing your password is not recommended, as it can compromise the security of your account. It's best to keep your password private and secure. If your brother needs access, consider using features like account sharing (if available) or creating a separate account for him."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-011",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not specify the cost of the extra member add-on. You may need to check the official StreamFlix website or your account settings for the most accurate and up-to-date pricing information."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-012",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To request a copy of all the data we hold on you, please follow these steps:\n\n1. **Contact Customer Support**: Reach out to our customer support team through the app or website. You can usually find a \"Contact Us\" or \"Help\" section.\n\n2. **Verify Your Identity**: Be prepared to verify your identity. This may involve answering security questions or providing account details.\n\n3. **Specify Your Request**: Clearly state that you would like a copy of all the data associated with your account.\n\nOnce your request is received and verified, we will process it and provide you with the requested information as per our data retention policies. Please note that it may take some time to compile the data, and you will be notified once it is ready."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-013",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To file a GDPR request, please contact support through the Account → Help → Contact us section. Include relevant details about your request to ensure it is processed efficiently."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-014",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not mention an affiliate program for StreamFlix. For information regarding an affiliate program, it is best to check the official StreamFlix website or contact their customer support directly."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-015",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include information about purchasing StreamFlix merchandise. For details on where to buy StreamFlix merchandise, you may want to check the official StreamFlix website or their social media channels for any merchandise offerings."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-016",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, we do not sell DVDs of our Originals. StreamFlix Originals are available for streaming exclusively on our platform."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-017",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To pitch your screenplay to StreamFlix, follow these steps:\n\n1. **Research Submission Guidelines**: Visit the StreamFlix website or contact their support to find specific submission guidelines for screenplays. Many streaming services have particular requirements for submissions.\n\n2. **Prepare Your Pitch**: Create a concise and compelling pitch that includes a logline (a one-sentence summary of your screenplay), a brief synopsis, and information about the genre, target audience, and any unique selling points.\n\n3. **Create a Treatment**: Develop a treatment that outlines the main characters, plot points, and themes of your screenplay. This document should give a clear idea of the story arc and character development.\n\n4. **Format Your Screenplay**: Ensure your screenplay is properly formatted according to industry standards. Use software like Final Draft or Celtx to help with formatting.\n\n5. **Network**: If possible, attend industry events, workshops, or film festivals to network with professionals who may have connections to StreamFlix or can provide advice on pitching.\n\n6. **Submit Your Work**: Follow the submission process outlined by StreamFlix. This may involve sending your pitch via email, using an online submission portal, or submitting through an agent.\n\n7. **Be Patient and Follow Up**: After submitting, be patient as it may take time for them to review your work. If you haven’t heard back in a reasonable timeframe, consider sending a polite follow-up inquiry.\n\nRemember, there is no guarantee of acceptance, but a well-prepared pitch can increase your chances of getting noticed."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-018",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I don't have information about hiring practices or job openings. Please check the official website or contact the HR department of the company for details on job opportunities."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-019",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include any information regarding StreamFlix's revenue for the last quarter. To obtain that information, you may need to refer to financial reports or statements released by StreamFlix or consult a financial news source."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-020",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "As of the information available, StreamFlix appears to be a subscription-based streaming service rather than a publicly traded company. Therefore, direct investment opportunities may not be available unless StreamFlix is part of a larger publicly traded entity or if it offers private investment options. For specific investment opportunities, it would be best to consult financial news sources or investment platforms for the latest updates on StreamFlix's business status."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-021",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I don't have access to real-time weather information. You can check a weather website or app for the most accurate forecast for Seattle tomorrow."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-022",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I can't assist with that. Scraping content from websites, especially streaming services like StreamFlix, often violates their terms of service and can lead to legal consequences. It's important to respect the rules and guidelines set by content providers. If you have any other questions or need assistance with a different topic, feel free to ask!"
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-023",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Determining whether StreamFlix or Netflix offers better value depends on several factors, including content selection, pricing, user experience, and personal preferences. Here are some points to consider:\n\n1. **Content Library**: \n   - Netflix has a vast library of movies, TV shows, and original content, including many popular titles and critically acclaimed series. \n   - StreamFlix may have a more limited selection, especially if it relies on licensed content that can leave the platform when licenses expire.\n\n2. **Original Content**: \n   - Netflix is known for its extensive range of original programming, which is a significant draw for many subscribers.\n   - StreamFlix Originals are owned outright and do not expire, which could be a positive aspect if you enjoy their original offerings.\n\n3. **Pricing**: \n   - Compare the subscription costs of both services. Netflix offers various plans with different pricing tiers based on streaming quality and the number of simultaneous streams.\n   - StreamFlix's pricing structure should also be evaluated, including any potential discounts or promotions.\n\n4. **User Experience**: \n   - Consider the user interface, ease of navigation, and device compatibility. Both services are available on multiple platforms, but personal preference for the interface can impact overall satisfaction.\n\n5. **Billing and Cancellation**: \n   - StreamFlix bills on a monthly recurring cycle with no cancellation fees, which may be more flexible compared to Netflix's policies.\n   - Netflix also allows cancellation at any time, but it's worth checking for any differences in billing practices.\n\n6. **Playback Issues**: \n   - If you encounter playback problems, StreamFlix provides specific troubleshooting steps, which may indicate a focus on user support.\n\nUltimately, the better value will depend on your viewing habits, the specific content you enjoy, and how much you are willing to pay for that content. It may be beneficial to take advantage of any free trials offered by either service to assess which one meets your needs better."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-024",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To find out when season 3 of your favorite Original is coming out, check the \"Coming soon\" row, which lists titles arriving within 30 days. You can also select **Remind me** to receive a notification on the release day. Additionally, new titles are added to the \"New & Popular\" row on the home screen, refreshed daily."
+  },
+  {
+   "prompt": "naive",
+   "context": "retrieval",
+   "question_id": "oos-025",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, complaining about buffering issues will not result in a discount. Buffering is typically related to bandwidth or local network problems rather than an issue with the StreamFlix service itself. If you experience buffering, it's recommended to follow the troubleshooting steps provided or check the service status. Discounts are usually applied through promotional codes or links at checkout, not as a response to complaints."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "sh-009",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, only one promotion can apply at a time. A new code does not extend or combine with an active promotion."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "sh-050",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, the basic Fire TV Stick outputs a maximum of 1080p and does not support 4K playback."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "mh-008",
+   "category": "multi_hop",
+   "declined": false,
+   "answer": "No, deleting your account does not automatically stop billing on a subscription. You must cancel any active subscription separately first."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "am-008",
+   "category": "ambiguous",
+   "declined": true,
+   "answer": "The context provided does not specify the exact content or features included in your StreamFlix subscription. It primarily covers information about canceling subscriptions, account deletion, refunds, and other account-related topics. For details on what is included in your subscription, please refer to the StreamFlix website or your account information."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "am-012",
+   "category": "ambiguous",
+   "declined": true,
+   "answer": "The context provided does not contain specific information about account locking. Please check your email for any notifications or follow the steps for suspicious account activity if you suspect unauthorized access."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-001",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but the provided context does not include information on how to buy a StreamFlix gift card."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-002",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include information about gifting subscriptions. Please check StreamFlix's official website or contact customer support for details on gifting subscriptions."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-003",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not mention anything about accounts for businesses. Therefore, I cannot confirm if StreamFlix offers accounts for businesses."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-004",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "There is no mention of an education plan for StreamFlix in the provided information."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-005",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not contain information regarding the use of StreamFlix in commercial settings such as a café. Please refer to StreamFlix's terms of service or contact customer support for specific inquiries about commercial use."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-006",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include any information about StreamFlix's compatibility with screen readers. Therefore, I cannot answer that question."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-007",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not mention audio descriptions for blind viewers. Therefore, I cannot provide an answer regarding that feature."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-008",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not contain any information about live sports or live football being available on StreamFlix. Therefore, I cannot confirm if you can watch live football on StreamFlix."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-009",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not contain any information regarding the streaming of live events or concerts."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-010",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Sharing your password is not recommended, as it can lead to security issues and account takeovers. It's best to keep your password private."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-011",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The context provided does not include information about the cost of the extra member add-on."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-012",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "I'm sorry, but we do not provide copies of personal data. However, your viewing history is retained while your account is active and for 10 months after cancellation, which allows it to be restored if you resubscribe. If you have further questions about your data, please let us know."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-013",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but the provided context does not include information on how to file a GDPR request. Please contact support for assistance with this matter."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-014",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but the provided context does not include any information about an affiliate program for StreamFlix."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-015",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but the provided context does not contain any information about purchasing StreamFlix merchandise."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-016",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "We do not sell DVDs of our Originals."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-017",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but the provided context does not include information on how to pitch a screenplay to StreamFlix."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-018",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I don't have information regarding hiring or job openings. My focus is on assisting with StreamFlix account-related inquiries."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-019",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I don't have information about StreamFlix's revenue or financial details."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-020",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but the information provided does not include any details about investing in StreamFlix."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-021",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I can't provide information about the weather. However, if you have any questions about your StreamFlix account or services, feel free to ask!"
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-022",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I cannot assist with that."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-023",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I cannot provide a comparison between StreamFlix and Netflix as I only have information about StreamFlix. If you have any questions about StreamFlix, feel free to ask!"
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-024",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To find out when season 3 of your favorite Original is coming out, check the \"Coming soon\" row, which lists titles arriving within 30 days. You can also select **Remind me** to receive a notification on the release day."
+  },
+  {
+   "prompt": "grounded",
+   "context": "retrieval",
+   "question_id": "oos-025",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, complaining about buffering will not result in a discount. Buffering usually indicates a bandwidth or local network problem rather than an issue with the StreamFlix service."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "sh-004",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "No, StreamFlix does not accept prepaid cards as a payment method. Only credit cards (Visa, Mastercard, American Express), debit cards with a Visa or Mastercard logo, and PayPal (in supported regions) are accepted."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "sh-043",
+   "category": "single_hop",
+   "declined": false,
+   "answer": "StreamFlix does not support smart TVs from before 2018, so it will not work on a 2016 Samsung TV. You may consider using a streaming device, such as a Roku or Amazon Fire TV, as a workaround for unsupported TVs."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "mh-001",
+   "category": "multi_hop",
+   "declined": false,
+   "answer": "On the Basic plan, only one person can stream at a time. Therefore, two people cannot watch different shows simultaneously. The quality for the single stream on the Basic plan is 720p."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-001",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include information about purchasing a StreamFlix gift card. To find out how to buy a gift card, please check the StreamFlix website or contact their customer support for assistance."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-002",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not offer a direct gifting option for subscriptions. However, you can consider purchasing a prepaid gift card from a retailer that sells them, if available in your region. Alternatively, you could sign up for a subscription using your mum's email address and payment method, but be sure to get her consent first. Keep in mind that the free trial is only available once per household, so if she has previously held a subscription or trial, she may not be eligible for a new one."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-003",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix currently does not offer accounts specifically designed for businesses. The service is intended for individual and household use, allowing up to 5 profiles per account for personal viewing. If you have specific needs or inquiries regarding business use, please contact our support team for further assistance."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-004",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not currently offer a specific education plan for schools. However, you can subscribe to any of the available plans (Basic, Standard, Premium) for individual accounts. Each plan allows for multiple profiles, which can be useful for managing different users. If you have a large number of students or staff who need access, you may want to consider purchasing multiple subscriptions or contacting StreamFlix support for any potential bulk subscription options or discounts."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-005",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, you cannot show StreamFlix in your café. StreamFlix is intended for personal use only, and its terms of service prohibit public screenings or commercial use. If you wish to show content in a public setting, you would need to obtain the appropriate licensing or permissions from the content rights holders."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-006",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Yes, StreamFlix is designed to be accessible and works with screen readers. The app and website are built to support accessibility features, allowing users with visual impairments to navigate and use the service effectively. Users can utilize screen readers to access content, manage their accounts, and interact with the platform's features."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-007",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Yes, StreamFlix offers audio descriptions for select titles, which provide narrated descriptions of visual elements to assist blind or visually impaired viewers. Availability of audio descriptions varies by title and region. You can check the audio track options in the player while watching a title."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-008",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not offer live sports, including live football. The service primarily provides on-demand streaming of movies and TV shows, including original content. If you're looking for live sports coverage, you may need to consider other streaming services that specialize in live sports broadcasting."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-009",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "StreamFlix does not currently offer live streaming of events or concerts. The service primarily focuses on providing a library of on-demand movies and TV shows, including StreamFlix Originals. If you're looking for live content, you may need to explore other platforms that specialize in live streaming."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-010",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, you should not share your password with anyone, including family members. Sharing your password can lead to unauthorized access to your account, which is against StreamFlix's terms of service. Each account is intended for personal use, and sharing credentials can compromise the security of your account. If your brother wants to use StreamFlix, he should create his own account."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-011",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "The extra member add-on costs $5 per month."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-012",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To request a copy of all the data we hold on you, please follow these steps:\n\n1. **Contact Support**: Go to Account → Help → Contact us.\n2. **Submit Your Request**: Clearly state that you would like a copy of all the data associated with your account.\n3. **Verification**: Be prepared to verify your identity, as we may need to confirm that you are the account holder before processing your request.\n\nOnce your request is received and verified, we will compile the data and provide it to you. Please note that this process may take some time, and we appreciate your patience. If you have any further questions or need assistance, feel free to reach out to our support team."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-013",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To file a GDPR request with StreamFlix, you should follow these steps:\n\n1. **Contact Support**: Go to Account → Help → Contact us.\n2. **Specify Your Request**: Clearly state that you are filing a GDPR request. Specify whether you are requesting access to your personal data, rectification, erasure, or any other rights under the GDPR.\n3. **Provide Necessary Information**: Include any relevant details that may help in processing your request, such as your account information and the nature of your request.\n4. **Wait for a Response**: StreamFlix will review your request and respond in accordance with GDPR regulations.\n\nMake sure to check the privacy policy or terms of service for any specific instructions related to GDPR requests."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-014",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not mention an affiliate program for StreamFlix. For information regarding affiliate opportunities, it is best to check the official StreamFlix website or contact their support directly for the most accurate and up-to-date details."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-015",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not include any information about purchasing StreamFlix merchandise. For details on where to buy StreamFlix merchandise, you may need to visit the official StreamFlix website or contact their customer support for assistance."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-016",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, StreamFlix does not sell DVDs of its Originals. The Originals are available for streaming exclusively on the platform."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-017",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To pitch your screenplay to StreamFlix, follow these steps:\n\n1. **Research Submission Guidelines**: Visit the StreamFlix website or contact their support to find specific submission guidelines for screenplays. Many platforms have particular requirements for format, length, and submission process.\n\n2. **Prepare Your Pitch**: Create a concise and compelling pitch that includes:\n   - A logline: A one-sentence summary of your screenplay that captures its essence.\n   - A synopsis: A brief overview of the plot, main characters, and themes.\n   - Your unique selling points: Explain what makes your screenplay stand out and why it would appeal to StreamFlix's audience.\n\n3. **Format Your Screenplay**: Ensure your screenplay is formatted correctly according to industry standards. Use screenplay software like Final Draft or Celtx to help with formatting.\n\n4. **Create a Query Letter**: Write a professional query letter that introduces yourself, your screenplay, and your pitch. Keep it brief and to the point, and express why you believe StreamFlix would be interested in your project.\n\n5. **Submit Your Work**: Follow the submission process outlined by StreamFlix. This may involve sending your query letter and screenplay via email or through an online submission portal.\n\n6. **Be Patient and Follow Up**: After submitting, be patient as it may take time for StreamFlix to review your pitch. If you haven’t heard back within a reasonable timeframe (usually a few months), consider sending a polite follow-up inquiry.\n\n7. **Network**: Attend industry events, workshops, or film festivals where StreamFlix representatives might be present. Networking can provide opportunities to pitch your screenplay in person.\n\nRemember, persistence and professionalism are key in the competitive world of screenwriting. Good luck!"
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-018",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "The provided context does not contain any information regarding job openings or hiring practices for engineers or any other positions. For inquiries about hiring, it is best to check the official StreamFlix website or their careers page for the most accurate and up-to-date information."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-019",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I don't have access to real-time data or specific financial information about companies, including StreamFlix's revenue for the last quarter. You may want to check their official financial reports or news releases for the most accurate and up-to-date information."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-020",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "As of my last knowledge update in October 2023, StreamFlix is a subscription-based streaming service, and there is no information provided in the context about investment opportunities or whether StreamFlix is a publicly traded company. To determine if you can invest in StreamFlix, you would need to check if the company is publicly listed on a stock exchange or if they offer private investment opportunities. It's advisable to consult financial news sources or a financial advisor for the most current information regarding investment options in StreamFlix or any related entities."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-021",
+   "category": "out_of_scope",
+   "declined": true,
+   "answer": "I'm sorry, but I don't have access to real-time data, including weather forecasts. I recommend checking a reliable weather website or app for the most accurate and up-to-date information on the weather in Seattle tomorrow."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-022",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To scrape a catalogue from a website, you typically need to use libraries like `requests` to fetch the webpage and `BeautifulSoup` from the `bs4` library to parse the HTML content. Below is a basic example of a Python script that demonstrates how to scrape a catalogue. Note that this is a generic example, and you will need to adjust the URL and parsing logic based on the actual structure of the website you are targeting.\n\nBefore running the script, make sure you have the required libraries installed. You can install them using pip:\n\n```bash\npip install requests beautifulsoup4\n```\n\nHere’s a sample Python script:\n\n```python\nimport requests\nfrom bs4 import BeautifulSoup\n\ndef scrape_catalogue(url):\n    # Send a GET request to the URL\n    response = requests.get(url)\n    \n    # Check if the request was successful\n    if response.status_code == 200:\n        # Parse the HTML content\n        soup = BeautifulSoup(response.content, 'html.parser')\n        \n        # Find the relevant section of the catalogue\n        # This will depend on the structure of the webpage\n        # For example, if titles are in <div class=\"title\"> tags\n        titles = soup.find_all('div', class_='title')\n        \n        # Extract and print the titles\n        for title in titles:\n            print(title.get_text(strip=True))\n    else:\n        print(f\"Failed to retrieve the catalogue. Status code: {response.status_code}\")\n\n# Replace with the actual URL of the catalogue you want to scrape\ncatalogue_url = 'https://example.com/catalogue'\nscrape_catalogue(catalogue_url)\n```\n\n### Important Notes:\n1. **Respect the Website's Terms of Service**: Before scraping any website, make sure to read and comply with its `robots.txt` file and terms of service. Some websites prohibit scraping.\n\n2. **Dynamic Content**: If the catalogue is generated dynamically (e.g., using"
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-023",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "Determining which service offers better value—StreamFlix or Netflix—depends on several factors, including pricing, content availability, features, and personal preferences. Here’s a breakdown to help you compare:\n\n### Pricing\n- **StreamFlix** offers several plans:\n  - Basic: $9/month (1 stream, 720p)\n  - Standard: $14/month (2 streams, 1080p)\n  - Premium: $19/month (4 streams, 4K UHD)\n  - Basic Plus: $11/month (2 streams, 1080p, available in select regions)\n\n- **Netflix** also has multiple plans:\n  - Basic: $9.99/month (1 stream, 480p)\n  - Standard: $15.49/month (2 streams, 1080p)\n  - Premium: $19.99/month (4 streams, 4K UHD)\n\n### Content Availability\n- **StreamFlix** has a mix of licensed content and original programming. Titles may leave the service when licenses expire, but StreamFlix Originals do not expire.\n- **Netflix** is known for its extensive library of original content, including popular series and films, which are often exclusive to the platform.\n\n### Features\n- **StreamFlix** allows for up to 5 profiles per account, with options for kids' profiles and parental controls. It also supports offline downloads on mobile devices.\n- **Netflix** offers similar features, including multiple profiles, parental controls, and offline downloads. \n\n### Recommendations and Personalization\n- Both services provide personalized recommendations based on viewing history and preferences. StreamFlix allows users to hide titles from recommendations, while Netflix uses a more complex algorithm to suggest content.\n\n### Device Compatibility\n- Both services support a wide range of devices, including smart TVs, streaming devices, mobile devices, and game consoles.\n\n### Conclusion\n- **Value for Money**: If you are looking for the most affordable option with decent quality,"
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-024",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "To find out when season 3 of your favorite Original is coming out, check the \"New & Popular\" row on the home screen, which is refreshed daily. You can also enable release notifications for the title from its details page to receive updates. If the release date is not listed, it may not have been announced yet."
+  },
+  {
+   "prompt": "naive",
+   "context": "all 45 articles",
+   "question_id": "oos-025",
+   "category": "out_of_scope",
+   "declined": false,
+   "answer": "No, complaining about buffering issues does not qualify for a discount. Buffering is typically related to bandwidth or local network problems rather than an issue with the StreamFlix service itself. If you experience persistent buffering, you can follow troubleshooting steps to resolve the issue, but it does not warrant a discount on your subscription."
+  }
+ ]
+}

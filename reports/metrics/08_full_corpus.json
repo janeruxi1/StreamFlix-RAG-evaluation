@@ -51,7 +51,7 @@
     "out_of_scope_refused": 25
   },
   "full_corpus_naive_out_of_scope_n": 25,
-  "full_corpus_naive_out_of_scope_refused": 0,
+  "full_corpus_naive_out_of_scope_refused": 6,
   "full_corpus_replaces_retrieval": false,
   "full_minus_rag": {
     "answered_in_scope": {

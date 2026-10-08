@@ -194,15 +194,23 @@ distinction Phase 3 flagged and Phase 6 depends on.
 | Rung | Refuses out-of-scope | Answers in-scope | Refusal F1 | Fabricated citations | Mean answer |
 |---|---:|---:|---:|---:|---:|
 | extractive baseline | 56.0% | 62.1% | 0.589 | 0 | 25 words |
-| `naive` | 0.0% | 100.0% | 0.000 | not applicable | 67 words |
-| `grounded` | 0.0% | 100.0% | 0.000 | not applicable | 36 words |
+| `naive` | 36.0% | 100.0% | 0.529 | not applicable | 70 words |
+| `grounded` | 80.0% | 97.9% | 0.880 | not applicable | 39 words |
 | `grounded_refusal` | 100.0% | 74.7% | 0.855 | not applicable | 25 words |
 | `cited` | 100.0% | 80.0% | 0.889 | 0 | 38 words |
 | `strict` | 100.0% | 73.7% | 0.848 | 0 | 43 words |
 
+> **Corrected in Phase 10.** This table first showed `naive` and
+> `grounded` refusing 0% of unanswerable questions, and the paragraph
+> below said `grounded` "produced no refusals at all". Both were the
+> refusal check missing declines worded differently from the canonical
+> sentence. The rows above are the corrected ones.
+
 Three things in that table are worth more than the ranking. Telling the
-model to use only the context (`grounded`) produced **no refusals at
-all**; it took explicit permission to refuse. Asking for citations did
+model to use only the context (`grounded`) got it to decline 20 of 25
+unanswerable questions while answering 93 of 95 answerable ones; the
+next rung's explicit refusal instruction closed the gap to 25 of 25 and
+answered 71 of 95. Asking for citations did
 not cost answers: `cited` answered 80.0% against 74.7% for the plain
 refusal rung, a five-question gap on 95 and so not a ranking. And the
 most elaborate prompt (`strict`) is no safer than `cited`, both refusing
@@ -256,7 +264,7 @@ the notebook stops before spending on scores it could not trust.
 | Arm | Faithfulness (answered) | Correctness (all 120) | Answered |
 |---|---:|---:|---:|
 | extractive baseline | 0.810 | 0.268 | 70 |
-| `naive` | 0.764 | 0.795 | 120 |
+| `naive` | 0.811 | 0.795 | 111 |
 | `cited` | 0.984 | 0.733 | 76 |
 
 That table invites a wrong reading, and the notebook is built to stop
@@ -382,9 +390,9 @@ no judged arm says the sources disagree. The judge scored both answers
 failure the instrument under-reports.
 
 **Every memo number is verified by `notebooks/07_decision_memo.py`**,
-which checks 53 claims and exits non-zero on drift. CI runs it. The check
+which checks 56 claims and exits non-zero on drift. CI runs it. The check
 is of two kinds and the notebook says which applies to each number: 11
-are recomputed live, and 42 that needed an API key or a model download
+are recomputed live, and 45 that needed an API key or a model download
 are checked against the measured records in `reports/metrics/`. CI has no
 key by design, so it cannot re-measure those; it can confirm the memo
 says what was measured.
@@ -556,10 +564,10 @@ an argument for combining them and not for swapping one for the other.
 
 **8. A faithfulness gap that was mostly composition.**
 
-`cited` scores 0.984 faithfulness and `naive` 0.764. On the 76 questions
+`cited` scores 0.984 faithfulness and `naive` 0.811. On the 76 questions
 both answered, it is 0.984 against 0.970. Almost the whole gap is `naive`
-answering the 25 unanswerable questions, where 23 of its answers contain
-claims the judge found unsupported.
+answering 16 of the 25 unanswerable questions, where 14 of its answers
+contain claims the judge found unsupported.
 
 The same split explains correctness. `naive` is more correct on
 answerable questions by +0.160 [+0.102, +0.219] and less correct on
@@ -630,7 +638,7 @@ python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
 python notebooks/09_decision_model.py         # what the measured rates are worth
 
-pytest tests/ -q                              # 395 tests
+pytest tests/ -q                              # 511 tests
 ```
 
 Token counts throughout are **estimates** (words × 1.3), computed the
@@ -646,7 +654,7 @@ machine that had installed `requirements.txt`.
 
 ```bash
 python scripts/run_llm_eval.py --dry-run      # the plan and its cost; spends nothing
-python scripts/run_llm_eval.py                # asks before spending, then runs 01-09
+python scripts/run_llm_eval.py                # asks before spending, then runs 01-10
 ```
 
 One command runs the generation arms and the judge, stops at the first

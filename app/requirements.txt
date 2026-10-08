@@ -1,0 +1,9 @@
+# Dependencies for the hosted demo only.
+#
+# Streamlit Community Cloud installs from this file because it sits
+# beside the app's entry point. The demo replays the measured run from
+# reports/metrics/, so it needs none of the model SDKs or the embedding
+# model in the root requirements.txt. tests/test_app_smoke.py passes in
+# an environment that has only these two packages.
+streamlit>=1.28
+numpy>=1.24

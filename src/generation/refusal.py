@@ -19,6 +19,20 @@ LLM judge for the cases where that matters, but paying a judge to detect
 Partial refusals are treated as NON-refusals on purpose. A response that
 disclaims and then answers anyway has still made unsupported claims, and
 scoring it as a refusal would hide exactly the failure worth catching.
+
+That cost was paid once, and in the direction that flattered the result.
+The first pattern list matched "the context does not include" and missed
+"the PROVIDED context does not include", "I don't have information
+about" and "I'm sorry, but I can't assist with that". The cited prompts
+refuse with the canonical string, so they were counted correctly. The
+naive prompt declines in its own words, so nine of its declines on
+unanswerable questions were counted as answers and it was reported as
+refusing 0 of 25. Reading the answers side by side in the demo exposed
+it. The patterns below were widened after reading all 25, and
+tests/test_refusal_labels.py pins the hand labels so the same miss cannot
+return unnoticed. A pattern list is only as good as the answers it was
+written against, which is an argument for reading outputs, not for
+trusting a count.
 """
 from __future__ import annotations
 
@@ -35,8 +49,12 @@ REFUSAL_PATTERNS = [
     r"i do not have enough information",
     r"not enough information (?:to|in the)",
     r"insufficient information",
-    r"the context does not (?:contain|provide|include|mention)",
-    r"the context doesn'?t (?:contain|provide|include|mention)",
+    r"the (?:provided |given |available |retrieved )?(?:context|information)"
+    r"(?: provided| given)? does not "
+    r"(?:contain|provide|include|mention|specify|cover|address|state|indicate)",
+    r"the (?:provided |given |available |retrieved )?(?:context|information)"
+    r"(?: provided| given)? doesn'?t "
+    r"(?:contain|provide|include|mention|specify|cover|address|state|indicate)",
     r"(?:is |are )?not (?:covered|mentioned|available|addressed) in the (?:context|provided)",
     r"i don'?t know",
     r"i do not know",
@@ -44,6 +62,14 @@ REFUSAL_PATTERNS = [
     r"cannot (?:be )?answer(?:ed)? (?:from|using|based on) the (?:context|information|provided)",
     r"no information (?:about|on|regarding) .{0,40} in the (?:context|provided)",
     r"unable to (?:find|locate) .{0,40} in the (?:context|provided)",
+    # Declines that never mention the context. A prompt with no refusal
+    # instruction words them its own way.
+    r"i (?:don'?t|do not) have (?:any |specific )?information (?:about|on|regarding)",
+    r"i (?:don'?t|do not) have access to",
+    r"i(?:'m| am) sorry,? but i (?:can'?t|cannot) (?:assist|help)",
+    r"no (?:information|mention|details?) (?:is |are )?(?:provided|available|given)",
+    r"no mention of .{0,60} in the (?:context|provided)",
+    r"i (?:can'?t|cannot) (?:provide|offer|give) (?:information|details|an answer|a comparison)",
 ]
 
 _COMPILED = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
@@ -51,6 +77,18 @@ _COMPILED = [re.compile(p, re.IGNORECASE) for p in REFUSAL_PATTERNS]
 # Signals that the model refused and then answered anyway.
 _HEDGE_CONTINUATION = re.compile(
     r"\b(?:but|however|though|generally|typically|usually|in general)\b",
+    re.IGNORECASE,
+)
+
+# An offer of further help is not an answer. "I can't help with that.
+# However, if you have any questions about your account, feel free to
+# ask!" declines and asserts nothing, so the courtesy is removed before
+# the tail is checked for a hedge.
+_COURTESY = re.compile(
+    r"(?:\b(?:however|but),?\s+)?"
+    r"(?:if you have (?:any|further|other|more)\b[^.!?]*"
+    r"|feel free to\b[^.!?]*"
+    r"|please let (?:me|us) know\b[^.!?]*)[.!?]?",
     re.IGNORECASE,
 )
 
@@ -121,6 +159,7 @@ def check_refusal(answer: str) -> RefusalCheck:
 
     match = pattern.search(text)
     lead, tail = text[:match.start()], text[match.end():]
+    tail = _COURTESY.sub(" ", tail)
 
     answered_first = (
         len(lead.split()) >= _LEAD_WORDS_THRESHOLD

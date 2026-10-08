@@ -171,15 +171,15 @@ answer length.
   produced (measured, from the Phase 4 record):
 
     rung                instruction  mean answer
-    naive                   5 words     67 words
-    grounded               32 words     36 words
+    naive                   5 words     70 words
+    grounded               32 words     39 words
     grounded_refusal       72 words     25 words
     cited                  82 words     38 words
     strict                 90 words     43 words
 
   This notebook used to treat instruction length as a proxy for answer
   length, on the reasoning that the upper rungs ask for more. Measured,
-  the longest answers come from `naive` at 67 words:
+  the longest answers come from `naive` at 70 words:
   the rung with the SHORTEST instruction. An unconstrained model
   elaborates; an instruction to stay inside the context and cite it
   makes answers shorter. The proxy pointed the wrong way, so any

@@ -1,6 +1,6 @@
 """Run the credentialed evaluation end to end and keep the evidence.
 
-    python scripts/run_llm_eval.py              # plan, confirm, run 01-09
+    python scripts/run_llm_eval.py              # plan, confirm, run 01-10
     python scripts/run_llm_eval.py --dry-run    # plan only, spends nothing
     python scripts/run_llm_eval.py --from 05    # resume at notebook 05
     python scripts/run_llm_eval.py --yes        # skip the confirmation
@@ -52,6 +52,7 @@ NOTEBOOKS = [
     "07_decision_memo",
     "08_full_corpus_baseline",
     "09_decision_model",
+    "10_measured_answers",
 ]
 OUT_DIR = ROOT / "reports" / "llm_run"
 CACHE_DIR = ROOT / ".llm_cache"

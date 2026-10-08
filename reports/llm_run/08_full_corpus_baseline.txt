@@ -95,10 +95,40 @@ C. THE TWO ARMS, MEASURED
     correctness, unanswerable    +0.000 [+0.000, +0.000]
     faithfulness, both answered  -0.014 [-0.042, +0.011]   (n = 70)
 
-  The naive prompt with the full corpus refused 0 of 25 unanswerable
-  questions; with retrieval it refused 0 of 25 (Phase 5). That row is the
+  The naive prompt with the full corpus refused 6 of 25 unanswerable
+  questions; with retrieval it refused 9 of 25 (Phase 5). That row is the
   check on whether seeing every article is enough, by itself, for a
   model to notice that none of them answers the question.
+
+  Where the two arms disagree, on the 95 answerable questions:
+
+    both answered                      70
+    both refused                       13
+    only retrieval answered             6
+    only the full corpus answered       6
+
+  Retrieval refused 19 answerable questions. With every article in the
+  prompt the model still refused 13 of those 19. Those are refusals
+  that better retrieval cannot fix, because nothing was missing. The
+  full corpus also refused 6 questions retrieval answered.
+
+  The same 19, by how much of the evidence retrieval had found:
+
+    evidence retrieved      refused    answered once given everything
+    all of it                    10                                 4
+    part of it                    6                                 1
+    none of it                    3                                 1
+
+  9 refusals came without the full evidence in hand. Supplying it
+  turned 2 of the 9 into answers.
+
+  Correctness by question type, full corpus minus retrieval. EXPLORATORY:
+  these three cuts are not part of the rule in Section A, each is a
+  small sample, and they are read after the fact.
+
+    single_hop   n = 60   -0.008 [-0.110, +0.095]
+    multi_hop    n = 20   +0.138 [+0.030, +0.263]
+    ambiguous    n = 15   +0.067 [-0.067, +0.233]
 
   The planted contradiction (mh-011). With the full corpus both refund
   articles are certainly in the context:
@@ -134,5 +164,25 @@ D. VERDICT
 E. VERIFICATION — THE MEMO SAYS WHAT WAS MEASURED
 ==============================================================================
 
-  The memo has no "## Is retrieval needed at all?" section yet, so there is
-  nothing to check. Once it does, every figure below must appear in it.
+    claim                             the memo must contain                         found
+    --------------------------------------------------------------------------------------
+    articles                          45 articles                                   yes
+    refused, retrieval                25 of 25                                      yes
+    refused, full corpus              25 of 25                                      yes
+    answered, retrieval               76 of 95                                      yes
+    answered, full corpus             76 of 95                                      yes
+    answered, paired                  +0.000 [-0.063, +0.074]                       yes
+    correctness, answerable, paired   +0.034 [-0.041, +0.109]                       yes
+    faithfulness, paired              -0.014 [-0.042, +0.011]                       yes
+    unsupported answers, full corpus  2 of 76                                       yes
+    context ratio                     13.3x                                         yes
+    naive, full corpus                refused 6 of                                  yes
+    refusals that persist             13 of those 19                                yes
+    lacking evidence, then answered   2 of the 9                                    yes
+    refused only by the full corpus   refused 6 questions retrieval answered        yes
+    multi-hop, exploratory            +0.138 [+0.030, +0.263]                       yes
+    cost per 1,000, retrieval         $0.15                                         yes
+    cost per 1,000, full corpus       $1.21                                         yes
+    mh-011, full corpus               states neither                                yes
+
+  All 18 figures in the memo's full-corpus section match the record.
