@@ -112,20 +112,20 @@ Generator `gpt-4o-mini`, judged by `gpt-4o`, on all 120 questions.
 | Arm | Refuses out-of-scope | Answers in-scope | Faithfulness (answered) | Correctness (all) |
 |---|---:|---:|---:|---:|
 | extractive baseline | 56.0% | 62.1% | — | 0.268 |
-| `naive` | 36.0% | 100.0% | 0.811 | 0.795 |
+| `naive` | 40.0% | 100.0% | 0.810 | 0.795 |
 | `cited` | 100.0% | 80.0% | 0.984 | 0.733 |
 
 **1. The LLM earns its cost.** Judged correctness of 0.733 against 0.268
 for an extractive answerer that copies sentences out of the context.
 
 **2. The refusal instruction is what separates the arms.** With no such
-instruction, `naive` declined 9 of 25 unanswerable questions in its own
-words and answered the other 16. **14 of the 16** answers contain claims
+instruction, `naive` declined 10 of 25 unanswerable questions in its own
+words and answered the other 15. **14 of the 15** answers contain claims
 the judge found unsupported, among them an invented procedure for a data
 request. `cited` refused all 25, and scores a refusal F1 of 0.889.
 
 **3. When both arms answer, they are equally faithful.** The headline
-faithfulness gap, 0.984 against 0.811, is mostly composition: each arm is
+faithfulness gap, 0.984 against 0.810, is mostly composition: each arm is
 averaged over the questions *it* chose to answer, and `naive` chose to
 answer most of the unanswerable ones. On the **76 questions both** arms answered
 it is **0.984 against 0.970**, a difference of **-0.015 [-0.040, +0.010]**
@@ -204,7 +204,7 @@ certainly in the context, `cited` still states neither window. That
 failure belongs to generation and to the help centre, not to retrieval.
 
 **It did not make the unsafe prompt safe.** Given everything, `naive`
-refused 6 of 25 unanswerable questions, against 9 of 25 with retrieval.
+refused 8 of 25 unanswerable questions, against 10 of 25 with retrieval.
 Seeing the whole help centre did not make the model readier to say that
 none of it answers the question. With more to draw on it asserted more,
 including a price for an add-on the help centre never mentions. The
@@ -243,15 +243,20 @@ scored the two arms **0.80 and 0.80** against a reference answer that
 names the conflict, though neither answer does. It checks the claims an
 answer makes, and a missing caveat is not a false claim.
 
-**The refusal counts rest on a pattern check that was wrong once.** An
-earlier version of this memo said `naive` refused 0 of 25. The check
-recognised the refusal sentence the cited prompts are told to use and
-missed the ways `naive` declines in its own words. Reading the answers
-side by side in the demo exposed it; no test had. The check is now scored
-against 88 hand-labelled answers and agrees with all of them, and the
-figures above are the corrected ones. The numbers for `cited` did not
-change. Refusals are still detected by pattern, so the same kind of miss
-is possible on answers nobody has read.
+**The refusal counts rest on a pattern check, and it misses some
+declines.** An earlier version of this memo said `naive` refused 0 of 25.
+The check recognised the refusal sentence the cited prompts are told to
+use and missed the ways `naive` declines in its own words. Reading the
+answers side by side in the demo exposed it; no test had. The check is
+now scored against 88 hand-labelled answers and agrees with 85. A blind
+second reading found three declines it cannot see, all from `naive`:
+answers that only say where release dates are shown, or tell the user to
+check for themselves whether the company is listed. None uses refusal
+language. Where an answer has a hand label, the figures above use it;
+the numbers for `cited` did not change. Every other answer is still
+classified by pattern, so the same kind of miss is possible on answers
+nobody has read, and it runs in one direction: a prompt that declines in
+its own words is counted as answering.
 
 **One model, one run, one corpus.** Temperature 0, a single generator
 version, a synthetic help centre. None of this says anything about a

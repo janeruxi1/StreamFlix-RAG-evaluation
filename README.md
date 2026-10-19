@@ -31,7 +31,7 @@ paired bootstrap.
 
 | Question | Result |
 |---|---|
-| Does it refuse what it cannot answer? | `cited` refused **25 of 25**. `naive` declined **9 of 25** and answered the other 16, 14 of them with unsupported claims. Twenty-five questions bound `cited`'s true rate only at **86.7%** or better. |
+| Does it refuse what it cannot answer? | `cited` refused **25 of 25**. `naive` declined **10 of 25** and answered the other 15, 14 of them with unsupported claims. Twenty-five questions bound `cited`'s true rate only at **86.7%** or better. |
 | Does it make things up? | **0** fabricated citations. **3 of 76** answers had an unsupported claim (faithfulness 0.984). |
 | What does the caution cost? | It declined **19 of 95** answerable questions. Correctness on answerable questions is +0.160 [+0.102, +0.219] higher for `naive`. |
 | Is retrieval needed at all? | **A tie.** All 45 articles in the prompt, against BM25 retrieval: same refusals, same answer rate, correctness +0.034 [-0.041, +0.109], at 13.3x the context. |
@@ -61,8 +61,10 @@ threshold moves.*
 - **Errors are corrected in the open.** Building the demo put the
   answers side by side and showed the refusal check had missed nine
   declines by the `naive` prompt, which had been reported as refusing
-  0 of 25. The check is now scored against 88 hand-labelled answers, the
-  memo carries the corrected figures and says what changed.
+  0 of 25. The check is now scored against 88 hand-labelled answers. A
+  blind second reading found three more declines no pattern can see; the
+  check agrees with 85 of 88, the hand labels decide those answers, and
+  the memo carries the corrected figures and says what changed.
 - **Small samples are reported as bounds.** 25 of 25 is stated with its
   Wilson lower bound, because the count alone reads as a guarantee.
 - **The memo cannot drift from the measurements.** Three notebooks check

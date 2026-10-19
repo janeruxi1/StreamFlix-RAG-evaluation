@@ -14,7 +14,7 @@ A. THE RECOMMENDATION
            it gave. That is enough to put it in front of support agents
            and not enough to put it in front of customers unattended.
 
-  DO NOT   ship the `naive` prompt in any form. It answered 16 of 25
+  DO NOT   ship the `naive` prompt in any form. It answered 15 of 25
            questions the help centre cannot answer, 14 of them with
            claims the judge found unsupported.
 
@@ -70,19 +70,19 @@ C. EVIDENCE — GENERATION  (recorded)
   arm                    refuse OOS  answer in  faithful  correct  fab. cites
   ---------------------------------------------------------------------------
   extractive_baseline         56.0%      62.1%     0.810    0.268           0
-  llm_naive                   36.0%     100.0%     0.811    0.795           0
+  llm_naive                   40.0%     100.0%     0.810    0.795           0
   llm_cited                  100.0%      80.0%     0.984    0.733           0
 
   1. The LLM earns its cost over the baseline. Judged correctness
      0.733 against 0.268 for the extractive answerer.
 
   2. The refusal instruction is what separates the arms. `llm_naive` declined
-     9 of 25 unanswerable questions in its own words and answered the
-     other 16; 14 of those answers contain claims the judge found
+     10 of 25 unanswerable questions in its own words and answered the
+     other 15; 14 of those answers contain claims the judge found
      unsupported. `llm_cited` refused all 25.
 
   3. When both arms answer, they are equally faithful. The headline
-     gap (0.984 vs 0.811) is composition: each arm is averaged over
+     gap (0.984 vs 0.810) is composition: each arm is averaged over
      the questions IT chose to answer. On the 76 both answered,
      0.984 vs 0.970: -0.015 [-0.040, +0.010] (llm_naive minus llm_cited).
 
@@ -194,10 +194,10 @@ F. VERIFICATION — EVERY MEMO NUMBER CHECKED
   cited: answers given            record 05  76 answers                              yes
   cited: correctness              record 05  0.733                                   yes
   cited: below threshold          record 05  3 of 76                                 yes
-  naive: faithfulness             record 05  0.811                                   yes
+  naive: faithfulness             record 05  0.810                                   yes
   naive: correctness              record 05  0.795                                   yes
-  naive: OOS declined             record 05  declined 9 of 25 unanswerable           yes
-  naive: OOS unsupported          record 05  14 of the 16                            yes
+  naive: OOS declined             record 05  declined 10 of 25 unanswerable          yes
+  naive: OOS unsupported          record 05  14 of the 15                            yes
   baseline: judged correctness    record 05  0.268                                   yes
   same questions: n               record 05  76 questions both                       yes
   same questions: faithfulness    record 05  0.984 against 0.970                     yes

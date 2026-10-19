@@ -33,11 +33,23 @@ tests/test_refusal_labels.py pins the hand labels so the same miss cannot
 return unnoticed. A pattern list is only as good as the answers it was
 written against, which is an argument for reading outputs, not for
 trusting a count.
+
+A second, blind reading of the 88 labelled answers found three more
+declines the patterns cannot see: two answers that only say where a
+release date is shown, and one that tells the user to find out for
+themselves whether the company is listed. None uses refusal language, so
+no pattern can catch them without also catching real answers. They are
+left as known misses rather than patterned away, and the evaluation
+uses `refusal_verdict`, which takes the hand label where an answer has
+one (refusal_hand_labels.json) and the pattern check everywhere else.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 # Canonical string the prompts request verbatim.
 CANONICAL_REFUSAL = "I don't have enough information to answer that."
@@ -112,6 +124,7 @@ class RefusalCheck:
     is_refusal: bool
     is_partial: bool          # refused, then answered anyway
     matched_pattern: str | None
+    reviewed: bool = False    # verdict taken from a hand label
 
     @property
     def label(self) -> str:
@@ -176,6 +189,30 @@ def check_refusal(answer: str) -> RefusalCheck:
         is_partial=is_partial,
         matched_pattern=pattern.pattern,
     )
+
+
+HAND_LABELS = Path(__file__).with_name("refusal_hand_labels.json")
+
+
+@lru_cache(maxsize=1)
+def hand_labels() -> dict[str, bool]:
+    """Answer text -> declined, for every answer a person has labelled."""
+    rows = json.loads(HAND_LABELS.read_text(encoding="utf-8"))["labels"]
+    return {r["answer"].strip(): bool(r["declined"]) for r in rows}
+
+
+def refusal_verdict(answer: str) -> RefusalCheck:
+    """The verdict the evaluation counts.
+
+    A hand label wins where one exists; otherwise the pattern check
+    decides. Overrides are marked `reviewed` so they can be counted.
+    """
+    check = check_refusal(answer)
+    label = hand_labels().get(answer.strip())
+    if label is None or label == check.is_refusal:
+        return check
+    return RefusalCheck(is_refusal=label, is_partial=False,
+                        matched_pattern=check.matched_pattern, reviewed=True)
 
 
 def is_refusal(answer: str) -> bool:

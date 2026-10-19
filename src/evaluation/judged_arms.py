@@ -33,7 +33,7 @@ from typing import Iterable
 import numpy as np
 
 from src.evaluation.rag_metrics import RunReport
-from src.generation.refusal import check_refusal
+from src.generation.refusal import refusal_verdict
 
 # The judge is the expensive tier, so "judge everything" is not the
 # default. Two arms answer the deployment question:
@@ -186,7 +186,7 @@ def contradiction_stance(answer: str,
     answer addresses. This check is the cheap one that needs no judge
     and cannot be talked round.
     """
-    if check_refusal(answer).is_refusal:
+    if refusal_verdict(answer).is_refusal:
         return "refused"
     # Citation ids are stripped first: "[trial-014]" is a source label,
     # not a statement about a 14-day window.

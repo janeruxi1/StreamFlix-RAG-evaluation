@@ -31,7 +31,7 @@ from src.generation.prompts import (
     extract_citations,
     format_context,
 )
-from src.generation.refusal import RefusalCheck, check_refusal
+from src.generation.refusal import RefusalCheck, refusal_verdict
 from src.llm.provider import LLMProvider
 from src.retrieval.retrievers import Retriever
 from src.retrieval.vectorstore import SearchHit, hits_to_articles
@@ -62,7 +62,7 @@ class RAGResult:
 
     @property
     def refusal(self) -> RefusalCheck:
-        return check_refusal(self.answer)
+        return refusal_verdict(self.answer)
 
     @property
     def citations(self) -> list[str]:

@@ -52,12 +52,12 @@
       "answer_rate_in_scope": 1.0,
       "citation_precision": null,
       "fabricated_citations": 0,
-      "mean_answer_words": 69.72973,
+      "mean_answer_words": 69.854545,
       "mean_prompt_tokens_estimated": 686.408333,
       "over_refusal_rate": 0.0,
       "partial_refusal_rate": 0.008333,
-      "refusal_f1": 0.529412,
-      "refusal_rate_out_of_scope": 0.36,
+      "refusal_f1": 0.571429,
+      "refusal_rate_out_of_scope": 0.4,
       "uncited_answer_rate": 1.0
     },
     "llm_strict": {

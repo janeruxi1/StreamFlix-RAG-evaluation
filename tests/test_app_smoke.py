@@ -56,7 +56,7 @@ def test_replay_headline_matches_the_measured_record():
     at = _run("Measured results")
     tiles = {m.label: m.value for m in at.metric}
     assert tiles["cited: unanswerable questions refused"] == "25 of 25"
-    assert tiles["naive: unanswerable questions refused"] == "9 of 25"
+    assert tiles["naive: unanswerable questions refused"] == "10 of 25"
     assert tiles["cited: answerable questions answered"] == "76 of 95"
     assert tiles["cited: answers with an unsupported claim"] == "3 of 76"
 

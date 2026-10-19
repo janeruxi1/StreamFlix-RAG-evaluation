@@ -72,7 +72,7 @@ from src.evaluation.judged_arms import write_metrics
 from src.generation.extractive import ExtractiveAnswerer
 from src.generation.pipeline import RAGPipeline
 from src.generation.prompts import VARIANTS, format_context
-from src.generation.refusal import check_refusal
+from src.generation.refusal import refusal_verdict
 from src.llm.provider import provider_ready
 from src.retrieval.chunking import STRATEGIES
 from src.retrieval.retrievers import BM25Retriever
@@ -429,7 +429,7 @@ elif has_key:
     ref_validation = validate_judge(reference_judge)
     answers_by_id = {qid: ans for qid, ans, _ in items}
     on_refusals = sum(1 for qid, _, _ in agreement.disagreements
-                      if check_refusal(answers_by_id[qid]).is_refusal)
+                      if refusal_verdict(answers_by_id[qid]).is_refusal)
     print(f"""  {len(agreement.disagreements)} disagreements out of {agreement.n}.
 
   This is not two competent raters splitting hard cases, and reading it

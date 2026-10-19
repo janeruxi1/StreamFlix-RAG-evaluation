@@ -95,8 +95,8 @@ C. THE TWO ARMS, MEASURED
     correctness, unanswerable    +0.000 [+0.000, +0.000]
     faithfulness, both answered  -0.014 [-0.042, +0.011]   (n = 70)
 
-  The naive prompt with the full corpus refused 6 of 25 unanswerable
-  questions; with retrieval it refused 9 of 25 (Phase 5). That row is the
+  The naive prompt with the full corpus refused 8 of 25 unanswerable
+  questions; with retrieval it refused 10 of 25 (Phase 5). That row is the
   check on whether seeing every article is enough, by itself, for a
   model to notice that none of them answers the question.
 
@@ -176,7 +176,7 @@ E. VERIFICATION — THE MEMO SAYS WHAT WAS MEASURED
     faithfulness, paired              -0.014 [-0.042, +0.011]                       yes
     unsupported answers, full corpus  2 of 76                                       yes
     context ratio                     13.3x                                         yes
-    naive, full corpus                refused 6 of                                  yes
+    naive, full corpus                refused 8 of                                  yes
     refusals that persist             13 of those 19                                yes
     lacking evidence, then answered   2 of the 9                                    yes
     refused only by the full corpus   refused 6 questions retrieval answered        yes

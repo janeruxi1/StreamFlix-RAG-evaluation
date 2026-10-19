@@ -194,7 +194,7 @@ distinction Phase 3 flagged and Phase 6 depends on.
 | Rung | Refuses out-of-scope | Answers in-scope | Refusal F1 | Fabricated citations | Mean answer |
 |---|---:|---:|---:|---:|---:|
 | extractive baseline | 56.0% | 62.1% | 0.589 | 0 | 25 words |
-| `naive` | 36.0% | 100.0% | 0.529 | not applicable | 70 words |
+| `naive` | 40.0% | 100.0% | 0.571 | not applicable | 70 words |
 | `grounded` | 80.0% | 97.9% | 0.880 | not applicable | 39 words |
 | `grounded_refusal` | 100.0% | 74.7% | 0.855 | not applicable | 25 words |
 | `cited` | 100.0% | 80.0% | 0.889 | 0 | 38 words |
@@ -204,7 +204,9 @@ distinction Phase 3 flagged and Phase 6 depends on.
 > `grounded` refusing 0% of unanswerable questions, and the paragraph
 > below said `grounded` "produced no refusals at all". Both were the
 > refusal check missing declines worded differently from the canonical
-> sentence. The rows above are the corrected ones.
+> sentence. The rows above are the corrected ones. A later blind
+> re-reading of the hand labels moved three more `naive` answers to
+> declined, one of them here, which took `naive` from 36.0% to 40.0%.
 
 Three things in that table are worth more than the ranking. Telling the
 model to use only the context (`grounded`) got it to decline 20 of 25
@@ -264,7 +266,7 @@ the notebook stops before spending on scores it could not trust.
 | Arm | Faithfulness (answered) | Correctness (all 120) | Answered |
 |---|---:|---:|---:|
 | extractive baseline | 0.810 | 0.268 | 70 |
-| `naive` | 0.811 | 0.795 | 111 |
+| `naive` | 0.810 | 0.795 | 110 |
 | `cited` | 0.984 | 0.733 | 76 |
 
 That table invites a wrong reading, and the notebook is built to stop
@@ -564,9 +566,9 @@ an argument for combining them and not for swapping one for the other.
 
 **8. A faithfulness gap that was mostly composition.**
 
-`cited` scores 0.984 faithfulness and `naive` 0.811. On the 76 questions
+`cited` scores 0.984 faithfulness and `naive` 0.810. On the 76 questions
 both answered, it is 0.984 against 0.970. Almost the whole gap is `naive`
-answering 16 of the 25 unanswerable questions, where 14 of its answers
+answering 15 of the 25 unanswerable questions, where 14 of its answers
 contain claims the judge found unsupported.
 
 The same split explains correctness. `naive` is more correct on

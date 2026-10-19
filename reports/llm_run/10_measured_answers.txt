@@ -71,9 +71,9 @@ C. THE DEMO RECORD IS THE RUN THE MEMO REPORTS
     cited: faithfulness, answered                       0.984211    0.984211  yes
     cited: correctness, all questions                   0.732917    0.732917  yes
     cited: citations of articles never shown                   0           0  yes
-    naive: unanswerable refused                                9           9  yes
+    naive: unanswerable refused                               10          10  yes
     naive: unanswerable answers unsupported                   14          14  yes
-    naive: faithfulness, answered                       0.811391    0.811391  yes
+    naive: faithfulness, answered                       0.809676    0.809676  yes
     naive: correctness, all questions                   0.795417    0.795417  yes
     full corpus: unanswerable refused                         25          25  yes
     full corpus: answerable answered                          76          76  yes
@@ -81,7 +81,7 @@ C. THE DEMO RECORD IS THE RUN THE MEMO REPORTS
     full corpus: faithfulness, answered                 0.971711    0.971711  yes
     full corpus: correctness, answerable                0.749474    0.749474  yes
     full corpus: correctness, unanswerable                   0.8         0.8  yes
-    full corpus, naive: unanswerable refused                   6           6  yes
+    full corpus, naive: unanswerable refused                   8           8  yes
     both arms answered                                        70          70  yes
     both arms refused                                         13          13  yes
     only retrieval answered                                    6           6  yes

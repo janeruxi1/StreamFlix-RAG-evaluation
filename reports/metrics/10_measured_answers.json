@@ -3274,9 +3274,9 @@
         "correctness_reason": "",
         "faithfulness": null,
         "faithfulness_reason": "",
-        "is_refusal": false,
+        "is_refusal": true,
         "relevancy": null,
-        "status": "partial_refusal",
+        "status": "refusal",
         "words": 90
       },
       "rag_cited": {
@@ -3506,9 +3506,9 @@
         "correctness_reason": "",
         "faithfulness": null,
         "faithfulness_reason": "",
-        "is_refusal": false,
+        "is_refusal": true,
         "relevancy": null,
-        "status": "answer",
+        "status": "refusal",
         "words": 57
       },
       "rag_cited": {
@@ -3534,9 +3534,9 @@
         "correctness_reason": "The evaluated answer provides methods to find release dates but does not explicitly state that the corpus holds no title-specific schedule, which is a key point in the reference answer.",
         "faithfulness": 1.0,
         "faithfulness_reason": "All claims are supported by the context, which states that the \"Coming soon\" row lists titles arriving within 30 days, the \"Remind me\" feature sends a notification on release day, and new titles are added to the \"New & Popular\" row on the home screen, refreshed daily.",
-        "is_refusal": false,
+        "is_refusal": true,
         "relevancy": 0.5,
-        "status": "answer",
+        "status": "refusal",
         "words": 56
       }
     },

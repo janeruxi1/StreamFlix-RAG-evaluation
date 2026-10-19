@@ -62,7 +62,7 @@ that confidently answers one is worse than one that says "I don't know."
 | Arm | Refuses out-of-scope | Answers in-scope | Faithfulness (answered) | Correctness |
 |---|---:|---:|---:|---:|
 | extractive baseline | 56.0% | 62.1% | 0.810 | 0.268 |
-| `naive` | 36.0% | 100.0% | 0.811 | 0.795 |
+| `naive` | 40.0% | 100.0% | 0.810 | 0.795 |
 | `cited` | 100.0% | 80.0% | 0.984 | 0.733 |
 
 **The judge**
@@ -84,7 +84,7 @@ that confidently answers one is worse than one that says "I don't know."
 | 2 | 5 chunking strategies, 2 embedding backends, vector store | `fixed_token_256` was a silent no-op: the same words as `whole_article`, one chunk per article |
 | 3 | 48-configuration bake-off (64 with the transformer arm) | recall@k is monotone in k, so **no quality metric can select depth** — it's a cost decision |
 | 4 | 5 prompt variants + extractive baseline + refusal detection | "use only the context" got 20 of 25 unanswerable questions declined; an explicit refusal instruction got 25 of 25 (first reported as 0 of 25: see the corrections) |
-| 5 | Evaluation harness with a validated judge | the faithfulness gap between arms was **composition**: 0.984 vs 0.811 overall, 0.984 vs 0.970 on the same questions |
+| 5 | Evaluation harness with a validated judge | the faithfulness gap between arms was **composition**: 0.984 vs 0.810 overall, 0.984 vs 0.970 on the same questions |
 | 6 | Judge audit | the "length bias" was the probes: the judge named the added claims, and real answers 28 words apart show no penalty |
 | 7 | Decision memo + verification | 56 memo claims checked: 11 recomputed live, 45 against committed records |
 | 10 | Per-question record + replay demo | putting the answers on screen exposed a refusal-check error that no test had caught |
@@ -102,7 +102,7 @@ between 70 and 76 of the 95. (This finding first read
 decline it worded differently from the canonical sentence.)
 
 **2. The headline faithfulness comparison was comparing different
-questions.** `cited` 0.984 against `naive` 0.811 looks like a careful
+questions.** `cited` 0.984 against `naive` 0.810 looks like a careful
 writer against a careless one. Each arm is averaged over the questions it
 chose to answer. On the 76 both answered it is 0.984 against 0.970,
 −0.015 [−0.040, +0.010]. `cited` is not more careful; it knows when to
@@ -178,7 +178,14 @@ the work.
   prompt with no refusal instruction declines. `naive` was reported as
   refusing 0 of 25 unanswerable questions and `grounded` 0 of 25; read by
   hand they declined 9 and 20. Nothing about `cited` changed. The check
-  is now validated against 88 hand-labelled answers. The lesson is the
+  is now validated against 88 hand-labelled answers.
+- **Second reading of the labels:** a blind re-label of the 88 answers
+  moved three `naive` answers to declined: two that only say where
+  release dates are shown and one that tells the user to check whether
+  the company is listed. No pattern catches them without catching real
+  answers, so the check agrees with 85 of 88 and the hand labels decide
+  those three. `naive` now declines 10 of 25 with retrieval and 8 of 25
+  with the full corpus. The lesson is the
   one this project keeps relearning: a count is a claim about a
   detector, and the detector has to be checked against something a
   person has read.

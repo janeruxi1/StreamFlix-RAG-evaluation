@@ -20,18 +20,17 @@ B. THE SWEEP
 ==============================================================================
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2285.99it/s]
+Loading weights:  53%|█████▎    | 106/199 [00:00<00:00, 1051.53it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1177.56it/s]
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2647.84it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2244.43it/s]
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights:  92%|█████████▏| 183/199 [00:00<00:00, 1829.70it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 1855.67it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2379.17it/s]
 
 Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
-Loading weights:  70%|██████▉   | 139/199 [00:00<00:00, 1138.21it/s]
-Loading weights: 100%|██████████| 199/199 [00:00<00:00, 952.53it/s]
+Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2005.60it/s]
 
   64 configurations evaluated on 95 questions each
 
