@@ -62,7 +62,7 @@ chroma_db/
 data/cache/
 
 # ============================================================
-# Private prep material (interview rehearsal — not shipped)
+# Private notes (not pushed to GitHub)
 # ============================================================
 reports/prep/
 
