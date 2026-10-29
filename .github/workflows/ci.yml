@@ -69,6 +69,7 @@ jobs:
           python notebooks/08_full_corpus_baseline.py > /dev/null
           python notebooks/09_decision_model.py > /dev/null
           python notebooks/10_measured_answers.py > /dev/null
+          python notebooks/11_ticket_routing.py > /dev/null
 
       - name: Assert the pipeline ran without any credential
         run: |
@@ -77,6 +78,30 @@ jobs:
             exit 1
           fi
           echo "Confirmed: no LLM credential present, pipeline passed regardless."
+
+  # The fine-tune loop in src/routing/finetune.py is the one place the
+  # project trains a network. Its tests need torch, which the main job
+  # deliberately does not install, so they run here on the CPU wheels.
+  # Nothing is downloaded from a model hub: the tests build a tiny
+  # randomly-initialised BERT from a config.
+  routing-finetune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install CPU torch and transformers
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers sentence-transformers numpy pandas scikit-learn pytest
+
+      - name: Fine-tune loop and script arms
+        run: pytest tests/test_routing_finetune.py tests/test_routing.py -v --tb=short
 
   secret-scan:
     runs-on: ubuntu-latest

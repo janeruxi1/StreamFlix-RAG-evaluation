@@ -399,6 +399,27 @@ are checked against the measured records in `reports/metrics/`. CI has no
 key by design, so it cannot re-measure those; it can confirm the memo
 says what was measured.
 
+### Phase 11 — Routing the ticket ✅
+
+A different decision from phases 1–10: not what the assistant says, but
+which team a ticket goes to. Four routers on Banking77 (77 intents,
+3,080 test questions), scored on accuracy and on **coverage**, the share
+of tickets routed without a person while those stay 95% correct, with
+the threshold chosen on a validation split and applied unchanged to
+test. Write-up: [`routing_note.md`](routing_note.md).
+
+- The TF-IDF baseline is strong (91.4%). The notebook retrains it live
+  and confirms the stored predictions match.
+- Fine-tuning BGE-small (plain PyTorch loop, three seeds, 76 to 108
+  minutes each on a laptop CPU) beats TF-IDF on every seed. Its
+  edge over the same model frozen was significant for only 1 of 3
+  seeds, and seed 0, the reported one, happens to be the best. Running
+  the extra seeds is what exposed that.
+- The difference that held for every seed is calibration: ECE 0.014–0.016
+  against 0.106 frozen. The frozen model's threshold missed 95% on test;
+  every fine-tuned seed's held.
+- A zero-shot LLM scored 66.6% with no probability to threshold on.
+
 ---
 
 ## Findings, in the order they were found
@@ -640,7 +661,7 @@ python notebooks/06_judge_analysis.py         # judge audit (no key needed)
 python notebooks/07_decision_memo.py          # verifies every memo number
 python notebooks/09_decision_model.py         # what the measured rates are worth
 
-pytest tests/ -q                              # 511 tests
+pytest tests/ -q                              # 548 tests
 ```
 
 Token counts throughout are **estimates** (words × 1.3), computed the

@@ -88,6 +88,7 @@ that confidently answers one is worse than one that says "I don't know."
 | 6 | Judge audit | the "length bias" was the probes: the judge named the added claims, and real answers 28 words apart show no penalty |
 | 7 | Decision memo + verification | 56 memo claims checked: 11 recomputed live, 45 against committed records |
 | 10 | Per-question record + replay demo | putting the answers on screen exposed a refusal-check error that no test had caught |
+| 11 | Ticket router: TF-IDF, frozen BGE, PyTorch fine-tune, zero-shot LLM, on 77-intent Banking77 | fine-tuning's accuracy edge over frozen embeddings held for 1 of 3 seeds; its calibration edge (ECE 0.016 vs 0.106) held for all, and is what keeps a 95% routing threshold honest |
 
 ---
 
@@ -222,16 +223,19 @@ src/
   retrieval/   chunking, embeddings, vector store, retrieval arms
   generation/  prompt variants, RAG pipeline, refusal detection, baseline
   evaluation/  retrieval metrics, RAG metrics, LLM judge, bias audit
+  routing/     ticket routers (TF-IDF, embeddings, PyTorch fine-tune, LLM)
   llm/         provider abstraction, credential masking, call budget
 notebooks/     01 corpus · 02 chunking · 03 bake-off · 04 generation
                05 evaluation · 06 judge audit · 07 decision memo
                08 full-corpus baseline · 09 decision model
+               10 measured answers · 11 ticket routing
 reports/       decision_memo.md, pilot_design.md, phase_notes.md,
                PROJECT_SUMMARY.md, figures
                metrics/   measured records from the credentialed run
                llm_run/   that run's output and environment manifest
-scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py
-tests/         511 tests
+scripts/       build_notebooks.py, check_repo.py, run_llm_eval.py,
+               run_routing.py
+tests/         548 tests
 ```
 
 Everything runs with **no API key**: CI installs no LLM client and fails

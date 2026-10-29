@@ -1,0 +1,291 @@
+{
+ "arms": {
+  "tfidf": {
+   "train_seconds": 40.3,
+   "ms_per_ticket_batched": 0.15,
+   "ms_single_ticket_median": 2.14
+  },
+  "frozen": {
+   "model": "BAAI/bge-small-en-v1.5",
+   "encode_seconds": 106.0,
+   "train_seconds": 2.6,
+   "ms_per_ticket_batched": 7.467,
+   "ms_single_ticket_median": 25.24
+  },
+  "llm": {
+   "provider": "openai",
+   "model": "gpt-4o-mini",
+   "n_tickets": 1001,
+   "per_class": 13,
+   "wall_seconds": 715.7,
+   "live_calls": 1001,
+   "ms_single_ticket_median": 683.5,
+   "unparsed": 14,
+   "unparsed_examples": [
+    "exchange_currency",
+    "balance_not_updated_after_cash_or_cheque_deposit",
+    "getting_disposable_card",
+    "getting_disposable_card",
+    "getting_disposable_card",
+    "top_up_by_card",
+    "getting_physical_card",
+    "getting_disposable_card",
+    "getting_disposable_card",
+    "getting_disposable_card"
+   ],
+   "est_cost_usd_per_1000": 0.0813,
+   "price_per_m_tokens": {
+    "input": 0.15,
+    "output": 0.6
+   }
+  },
+  "finetune": {
+   "config": {
+    "model_name": "BAAI/bge-small-en-v1.5",
+    "max_len": 64,
+    "batch_size": 32,
+    "lr": 5e-05,
+    "head_lr": 0.001,
+    "weight_decay": 0.01,
+    "warmup_frac": 0.06,
+    "max_epochs": 5,
+    "patience": 2,
+    "dropout": 0.1,
+    "pooling": "cls",
+    "seed": 0
+   },
+   "seeds": [
+    {
+     "seed": 0,
+     "epochs": [
+      {
+       "epoch": 1,
+       "train_loss": 1.9193125365050971,
+       "val_accuracy": 0.8943170488534397,
+       "val_macro_f1": 0.8876684995317717,
+       "seconds": 1242.9
+      },
+      {
+       "epoch": 2,
+       "train_loss": 0.34463078214238724,
+       "val_accuracy": 0.9132602193419741,
+       "val_macro_f1": 0.9125779136497589,
+       "seconds": 1382.1
+      },
+      {
+       "epoch": 3,
+       "train_loss": 0.19329447493432683,
+       "val_accuracy": 0.9202392821535393,
+       "val_macro_f1": 0.9195245724178005,
+       "seconds": 1454.1
+      },
+      {
+       "epoch": 4,
+       "train_loss": 0.12381460574448955,
+       "val_accuracy": 0.9272183449651047,
+       "val_macro_f1": 0.9249694478410827,
+       "seconds": 1307.6
+      },
+      {
+       "epoch": 5,
+       "train_loss": 0.09166820993950815,
+       "val_accuracy": 0.9272183449651047,
+       "val_macro_f1": 0.9255142824778418,
+       "seconds": 1068.6
+      }
+     ],
+     "best_epoch": 5,
+     "best_val_macro_f1": 0.9255142824778418,
+     "train_seconds": 6456.4,
+     "ms_per_ticket_batched": 22.43,
+     "ms_single_ticket_median": 34.3,
+     "n_parameters": 33389645
+    },
+    {
+     "seed": 1,
+     "epochs": [
+      {
+       "epoch": 1,
+       "train_loss": 1.8958839907291087,
+       "val_accuracy": 0.8893320039880359,
+       "val_macro_f1": 0.8859052391781522,
+       "seconds": 1216.0
+      },
+      {
+       "epoch": 2,
+       "train_loss": 0.3408805725580834,
+       "val_accuracy": 0.9192422731804586,
+       "val_macro_f1": 0.9180675218956036,
+       "seconds": 1017.0
+      },
+      {
+       "epoch": 3,
+       "train_loss": 0.1897884541263817,
+       "val_accuracy": 0.9252243270189432,
+       "val_macro_f1": 0.9238273883163355,
+       "seconds": 934.6
+      },
+      {
+       "epoch": 4,
+       "train_loss": 0.1211834136158862,
+       "val_accuracy": 0.9292123629112662,
+       "val_macro_f1": 0.9288520067440301,
+       "seconds": 878.7
+      },
+      {
+       "epoch": 5,
+       "train_loss": 0.08692938934826681,
+       "val_accuracy": 0.9252243270189432,
+       "val_macro_f1": 0.9245792362225168,
+       "seconds": 886.6
+      }
+     ],
+     "best_epoch": 4,
+     "best_val_macro_f1": 0.9288520067440301,
+     "train_seconds": 4933.4
+    },
+    {
+     "seed": 2,
+     "epochs": [
+      {
+       "epoch": 1,
+       "train_loss": 1.9213098511628226,
+       "val_accuracy": 0.8923230309072782,
+       "val_macro_f1": 0.8912074147683419,
+       "seconds": 930.3
+      },
+      {
+       "epoch": 2,
+       "train_loss": 0.340901430643408,
+       "val_accuracy": 0.9102691924227319,
+       "val_macro_f1": 0.9079269945728261,
+       "seconds": 915.3
+      },
+      {
+       "epoch": 3,
+       "train_loss": 0.18581574333580672,
+       "val_accuracy": 0.9212362911266201,
+       "val_macro_f1": 0.9207187487147279,
+       "seconds": 901.9
+      },
+      {
+       "epoch": 4,
+       "train_loss": 0.12442030323048432,
+       "val_accuracy": 0.9202392821535393,
+       "val_macro_f1": 0.9198780805765991,
+       "seconds": 906.4
+      },
+      {
+       "epoch": 5,
+       "train_loss": 0.08747631223568468,
+       "val_accuracy": 0.9212362911266201,
+       "val_macro_f1": 0.9198974128522357,
+       "seconds": 888.9
+      }
+     ],
+     "best_epoch": 3,
+     "best_val_macro_f1": 0.9207187487147279,
+     "train_seconds": 4543.3
+    }
+   ]
+  }
+ },
+ "dataset": "Banking77 (PolyAI, CC BY 4.0)",
+ "splits": {
+  "fit": 9000,
+  "val": 1003,
+  "test": 3080
+ },
+ "split_seed": 0,
+ "val_fraction": 0.1,
+ "labels": [
+  "card_arrival",
+  "card_linking",
+  "exchange_rate",
+  "card_payment_wrong_exchange_rate",
+  "extra_charge_on_statement",
+  "pending_cash_withdrawal",
+  "fiat_currency_support",
+  "card_delivery_estimate",
+  "automatic_top_up",
+  "card_not_working",
+  "exchange_via_app",
+  "lost_or_stolen_card",
+  "age_limit",
+  "pin_blocked",
+  "contactless_not_working",
+  "top_up_by_bank_transfer_charge",
+  "pending_top_up",
+  "cancel_transfer",
+  "top_up_limits",
+  "wrong_amount_of_cash_received",
+  "card_payment_fee_charged",
+  "transfer_not_received_by_recipient",
+  "supported_cards_and_currencies",
+  "getting_virtual_card",
+  "card_acceptance",
+  "top_up_reverted",
+  "balance_not_updated_after_cheque_or_cash_deposit",
+  "card_payment_not_recognised",
+  "edit_personal_details",
+  "why_verify_identity",
+  "unable_to_verify_identity",
+  "get_physical_card",
+  "visa_or_mastercard",
+  "topping_up_by_card",
+  "disposable_card_limits",
+  "compromised_card",
+  "atm_support",
+  "direct_debit_payment_not_recognised",
+  "passcode_forgotten",
+  "declined_cash_withdrawal",
+  "pending_card_payment",
+  "lost_or_stolen_phone",
+  "request_refund",
+  "declined_transfer",
+  "Refund_not_showing_up",
+  "declined_card_payment",
+  "pending_transfer",
+  "terminate_account",
+  "card_swallowed",
+  "transaction_charged_twice",
+  "verify_source_of_funds",
+  "transfer_timing",
+  "reverted_card_payment?",
+  "change_pin",
+  "beneficiary_not_allowed",
+  "transfer_fee_charged",
+  "receiving_money",
+  "failed_transfer",
+  "transfer_into_account",
+  "verify_top_up",
+  "getting_spare_card",
+  "top_up_by_cash_or_cheque",
+  "order_physical_card",
+  "virtual_card_not_working",
+  "wrong_exchange_rate_for_cash_withdrawal",
+  "get_disposable_virtual_card",
+  "top_up_failed",
+  "balance_not_updated_after_bank_transfer",
+  "cash_withdrawal_not_recognised",
+  "exchange_charge",
+  "top_up_by_card_charge",
+  "activate_my_card",
+  "cash_withdrawal_charge",
+  "card_about_to_expire",
+  "apple_pay_or_google_pay",
+  "verify_my_identity",
+  "country_support"
+ ],
+ "versions": {
+  "python": "3.13.12",
+  "numpy": "2.4.6",
+  "pandas": "2.3.3",
+  "scikit-learn": "1.9.0",
+  "torch": "2.13.0",
+  "transformers": "5.15.1",
+  "sentence-transformers": "6.0.0",
+  "openai": "1.109.1"
+ },
+ "generated_at": "2026-10-29T01:21:13+00:00"
+}

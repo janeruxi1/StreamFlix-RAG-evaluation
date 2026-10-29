@@ -46,6 +46,39 @@ answer rate on answerable ones. `naive` answers every answerable question
 and most of the unanswerable ones. Right: the same tension in a non-LLM baseline as one
 threshold moves.*
 
+## Routing the ticket first (notebook 11)
+
+Before anyone answers a ticket, it has to reach the right team. Notebook
+11 compares four routers on 3,080 held-out real customer questions with
+77 intents ([Banking77](data/routing/README.md), a public banking set,
+used because routing needs thousands of labelled tickets). The question
+is how many tickets can skip a person while 95% of those still land in
+the right queue. Full write-up: [routing note](reports/routing_note.md).
+
+| Router | Test accuracy | Auto-routed at the 95% bar | Calibration (ECE) | Cost per 1,000 |
+|---|---|---|---|---|
+| TF-IDF + logistic regression | 91.4% | 89.5% | 0.097 | $0 |
+| BGE-small embeddings, frozen | 93.0% | 97.4%, but only 94.4% correct | 0.106 | $0 |
+| BGE-small fine-tuned in PyTorch | 93.8% | 97.0% at 95.3% correct | 0.016 | $0 |
+| gpt-4o-mini, zero-shot | 66.6% | no confidence to threshold | — | $0.081 |
+
+- **Fine-tuning beats TF-IDF on every seed** (+2.3 points [+1.4, +3.2]
+  for the reported one). Its accuracy edge over frozen embeddings is
+  significant for only 1 of 3 seeds, so the result is stated that way.
+- **What fine-tuning reliably buys is calibration.** Every seed's
+  threshold, chosen on validation, held on test; the frozen model's did
+  not.
+- **The general LLM loses badly** to models trained on 9,000 labelled
+  tickets, and 14 of 1,001 replies named intents that do not exist.
+
+![Share of tickets routed automatically against misroute rate](reports/figures/11_routing_coverage.png)
+
+The fine-tune is a plain PyTorch loop ([`src/routing/finetune.py`](src/routing/finetune.py)),
+tested in CI on a tiny randomly initialised BERT. It ran on a laptop CPU
+via `scripts/run_routing.py`; the notebook replays the stored
+predictions with no torch and no key, and retrains the TF-IDF arm live
+to confirm them.
+
 ## How the evidence is kept honest
 
 - **The test was written before the system.** The golden set and its
@@ -96,11 +129,12 @@ with only the scientific stack installed.
 pip install numpy pandas scikit-learn matplotlib pytest
 python -c "from src.corpus.build import write_corpus, write_golden_set; write_corpus(); write_golden_set()"
 
-pytest tests/ -q                           # 511 tests (8 need streamlit)
+pytest tests/ -q                           # 548 tests (8 need streamlit, 8 need torch)
 python notebooks/07_decision_memo.py       # checks the memo against the records
 python notebooks/08_full_corpus_baseline.py
 python notebooks/09_decision_model.py
 python notebooks/10_measured_answers.py    # checks the demo's record the same way
+python notebooks/11_ticket_routing.py      # routing results, checked against the note
 
 pip install -r app/requirements.txt        # streamlit and numpy are all it needs
 streamlit run app/streamlit_app.py         # the demo, replaying the measured run
@@ -114,6 +148,15 @@ python scripts/run_llm_eval.py --dry-run   # the plan and its cost
 python scripts/run_llm_eval.py             # asks before spending
 ```
 
+To retrain the routers (CPU torch; the three fine-tune seeds took about
+four and a half hours on a laptop, and the LLM arm about $0.08):
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install transformers sentence-transformers
+python scripts/run_routing.py              # asks before any paid call
+```
+
 [`SETUP.md`](SETUP.md) covers the API key and a spend cap.
 `requirements-lock.txt` has the exact versions behind the committed
 numbers.
@@ -123,6 +166,7 @@ numbers.
 | | |
 |---|---|
 | [Decision memo](reports/decision_memo.md) | The recommendation and its evidence. Start here. |
+| [Routing note](reports/routing_note.md) | Which ticket router to use, and how much can skip a person. |
 | [Pilot design](reports/pilot_design.md) | The cost model, break-even points and sample sizes. |
 | [Scenario brief](reports/scenario_brief.md) | The stakeholder request the work answers. |
 | [Phase notes](reports/phase_notes.md) | What each phase built and every finding in order, including the ones later revised. |
@@ -132,11 +176,12 @@ numbers.
 
 ```
 src/         corpus, retrieval, llm (provider, cache, key handling),
-             generation, evaluation (metrics, judge, statistics, decision model)
-notebooks/   01 to 10, each a .py source of truth with a generated .ipynb
-tests/       511 tests
+             generation, evaluation (metrics, judge, statistics, decision model),
+             routing (baselines, PyTorch fine-tune, LLM router, metrics)
+notebooks/   01 to 11, each a .py source of truth with a generated .ipynb
+tests/       548 tests
 reports/     memo, pilot brief, measured records, run logs, figures
-scripts/     the credentialed run, notebook build, repository checks
+scripts/     the credentialed runs, notebook build, repository checks
 app/         Streamlit demo, with its own two-line requirements file
 ```
 
