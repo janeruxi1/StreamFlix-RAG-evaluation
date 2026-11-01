@@ -189,5 +189,5 @@ app/         Streamlit demo, with its own two-line requirements file
 
 Part of a three-project series sharing the StreamFlix universe:
 
-- **[A/B Test Analysis](https://github.com/janeruxi1/StreamFlix-AB-Testing)**: experiment design, sequential testing, CUPED, sensitivity analysis
-- **[Churn & Retention](https://github.com/janeruxi1/StreamFlix-Churn-Retention)**: churn modelling, survival-based LTV, budget-constrained targeting policy, and an uplift-model test
+- **[A/B testing on real experiments](https://github.com/janeruxi1/ab-testing-real-experiments)**: one e-mail test from analysis plan to rollout, and the winner's curse across 22,743 headline tests
+- **[Churn and retention on real data](https://github.com/janeruxi1/churn-uplift-decisioning)**: a churn model tested out of time on KKBox subscriptions, lifetime value, and a real retention experiment with uplift models
