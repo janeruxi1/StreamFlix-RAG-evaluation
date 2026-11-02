@@ -2,6 +2,19 @@
 Phase 3 — Retrieval Bake-Off
 =============================
 
+At a glance
+-----------
+
+**Question.** Which retrieval setup should ship: chunking, retriever and how many passages?
+
+**Answer.** BM25 on markdown sections at depth 15 finds 88% of the needed evidence; a transformer retriever reaches 97% but needs 4.4 times the context. Ambiguous questions stay weak everywhere, which points at understanding the question, not ranking.
+
+![03_retrieval_bakeoff.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/03_retrieval_bakeoff.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its full printed output is in [`reports/llm_run/03_retrieval_bakeoff.txt`](../reports/llm_run/03_retrieval_bakeoff.txt).*
+
+**Next:** [Phase 4](04_generation.ipynb) builds the answering layer.
+
 Phase 2 built one configuration and measured it. This phase sweeps the
 space and decides what ships.
 

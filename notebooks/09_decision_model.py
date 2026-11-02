@@ -2,6 +2,17 @@
 Phase 9 — What the Numbers Are Worth
 =====================================
 
+At a glance
+-----------
+
+**Question.** What are the error rates worth, and which one matters most?
+
+**Answer.** A bad answer costs far more than a refusal: the deployment's value moves 5.8 times as much with the bad-answer rate as with the refusal rate, and answering only pays when a bad answer costs less than about 24 times a handled refusal. That is why the pilot measures wrong answers first.
+
+*This notebook is published without outputs, so no credential can ever be saved into one. Its full printed output is in [`reports/llm_run/09_decision_model.txt`](../reports/llm_run/09_decision_model.txt).*
+
+**Next:** [Phase 10](10_measured_answers.ipynb) checks the demo against the records.
+
 Phase 7 recommended a pilot because 25 of 25 refusals only bounds the
 true rate at 86.7%. That argument is incomplete. A bound is too low or
 high enough only relative to what a wrong answer costs, and the memo

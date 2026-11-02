@@ -2,6 +2,21 @@
 Phase 11 — Routing the Ticket Before Anyone Answers It
 =======================================================
 
+At a glance
+-----------
+
+**Question.** Which team should each incoming question go to, and when can routing be automatic?
+
+**Answer.** On 3,080 real banking questions across 77 topics, a fine-tuned small model routes 93.8% correctly, against 91.4% for TF-IDF and 67% for a general model with no training. Its real advantage is honest confidence: it can auto-route 97% of questions at 95% accuracy.
+
+![11_routing_accuracy.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/11_routing_accuracy.png)
+
+![11_routing_coverage.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/11_routing_coverage.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its results are written up in [`reports/routing_note.md`](../reports/routing_note.md).*
+
+**Next:** Back to the [README](../README.md) or the [decision memo](../reports/decision_memo.md).
+
 Notebooks 01–10 measured what the assistant says once a question has
 reached it. A support operation makes an earlier decision on every
 ticket: which queue it goes to. Get that wrong and the best answer in

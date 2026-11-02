@@ -2,6 +2,17 @@
 Phase 8 — Is Retrieval Needed at All?
 ======================================
 
+At a glance
+-----------
+
+**Question.** At this size, is retrieval needed, or can the model just read the whole help centre?
+
+**Answer.** Not needed at this size: putting all 45 articles in the prompt answers the same 76 of 95 questions, at 13.3 times the context. Most over-refusals persist either way, so they come from the prompt, not from retrieval.
+
+*This notebook is published without outputs, so no credential can ever be saved into one. Its full printed output is in [`reports/llm_run/08_full_corpus_baseline.txt`](../reports/llm_run/08_full_corpus_baseline.txt).*
+
+**Next:** [Phase 9](09_decision_model.ipynb) turns the rates into money.
+
 The whole help centre is about eight thousand tokens. It fits in one
 prompt many times over, for a fraction of a cent. So before any claim
 that the retrieval layer is worth shipping, there is a simpler system to

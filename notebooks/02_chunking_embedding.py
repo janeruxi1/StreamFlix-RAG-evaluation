@@ -2,6 +2,19 @@
 Phase 2 — Chunking, Embeddings & the Retrieval Baseline
 ========================================================
 
+At a glance
+-----------
+
+**Question.** How should the articles be split and searched, and what does a first retriever achieve?
+
+**Answer.** Splitting by markdown section works; dense embeddings match keyword search (BM25) on simple questions and help on multi-source (+9 points) and ambiguous ones (+10). One question about a refund contradiction defeats both retrievers.
+
+![02_chunking_profiles.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/02_chunking_profiles.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its full printed output is in [`reports/llm_run/02_chunking_embedding.txt`](../reports/llm_run/02_chunking_embedding.txt).*
+
+**Next:** [Phase 3](03_retrieval_bakeoff.ipynb) runs the full retrieval bake-off.
+
 Phase 1 established the floor: BM25 gets 93% recall@5 on single-hop
 questions, 68% on multi-hop, 49% on ambiguous. Phase 2 builds the dense
 retrieval pipeline that has to justify itself against those numbers.

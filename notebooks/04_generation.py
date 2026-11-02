@@ -2,6 +2,19 @@
 Phase 4 — Generation, Grounding and Refusal
 ============================================
 
+At a glance
+-----------
+
+**Question.** How should the model be prompted so it answers from the help centre and declines when it cannot?
+
+**Answer.** Grounding instructions and required citations change refusals sharply: the cited prompt declines all 25 unanswerable questions with no invented citations, while the naive prompt declines only 10. The price is some over-refusal on answerable questions.
+
+![04_refusal_tradeoff.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/04_refusal_tradeoff.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its full printed output is in [`reports/llm_run/04_generation.txt`](../reports/llm_run/04_generation.txt).*
+
+**Next:** [Phase 5](05_evaluation.ipynb) builds the evaluation harness.
+
 Retrieval is settled. This phase turns retrieved context into answers,
 and measures the thing that actually decides whether a support bot is
 deployable: does it know when to say "I don't know"?

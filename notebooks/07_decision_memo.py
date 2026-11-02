@@ -2,6 +2,17 @@
 Phase 7 — The Deployment Decision, and Verifying the Memo That States It
 =========================================================================
 
+At a glance
+-----------
+
+**Question.** What should be deployed, and does every number in the memo match the measurements?
+
+**Answer.** Pilot the cited answering layer with a support agent checking answers; do not ship the naive prompt. Every number in the [decision memo](../reports/decision_memo.md) is recomputed here and must match.
+
+*This notebook is published without outputs, so no credential can ever be saved into one. Its full printed output is in [`reports/llm_run/07_decision_memo.txt`](../reports/llm_run/07_decision_memo.txt).*
+
+**Next:** [Phase 8](08_full_corpus_baseline.ipynb) asks whether retrieval is needed at all.
+
 Two jobs, and the second is why this is a notebook rather than only a
 document.
 

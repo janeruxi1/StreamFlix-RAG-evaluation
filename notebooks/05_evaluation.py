@@ -2,6 +2,19 @@
 Phase 5 — The Evaluation Harness
 =================================
 
+At a glance
+-----------
+
+**Question.** How good are the answers, measured by a judge that has itself been checked first?
+
+**Answer.** The LLM judge is validated on cases with known verdicts before any score is believed. The cited arm answers 76 of 95 answerable questions with faithfulness 0.98; the naive arm is less faithful (0.81) but scores higher on correctness (0.80 against 0.73), largely because it declines fewer answerable questions.
+
+![05_evaluation.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/05_evaluation.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its full printed output is in [`reports/llm_run/05_evaluation.txt`](../reports/llm_run/05_evaluation.txt).*
+
+**Next:** [Phase 6](06_judge_analysis.ipynb) audits the judge for bias.
+
 Four metrics, in the RAGAS tradition, with one deliberate departure and
 one thing added that RAGAS does not provide.
 

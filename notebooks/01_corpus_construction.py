@@ -2,6 +2,19 @@
 Phase 1 — Corpus Construction & Audit
 ======================================
 
+At a glance
+-----------
+
+**Question.** What will the assistant answer from, and how will we know if it answers well?
+
+**Answer.** A help centre of 45 articles and a golden set of 120 questions written before any system was built: single-hop, multi-source and ambiguous questions, plus 25 the help centre cannot answer, so refusing and making things up can both be measured.
+
+![01_corpus_composition.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/01_corpus_composition.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its full printed output is in [`reports/llm_run/01_corpus_construction.txt`](../reports/llm_run/01_corpus_construction.txt).*
+
+**Next:** [Phase 2](02_chunking_embedding.ipynb) chunks the articles and builds a first retriever.
+
 Before any retrieval or generation, two artifacts have to exist and be
 trustworthy:
 

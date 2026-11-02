@@ -2,6 +2,19 @@
 Phase 6 — Auditing the Judge Itself
 ====================================
 
+At a glance
+-----------
+
+**Question.** Is the judge biased, for example toward shorter or longer answers?
+
+**Answer.** On paired probes it scores longer answers lower, but its reasons name the extra claims, and on real answers a per-word length penalty is ruled out. It disagrees strongly with a simple word-overlap judge (kappa −0.47), which counts against the simple judge.
+
+![06_judge_bias.png](https://raw.githubusercontent.com/janeruxi1/StreamFlix-RAG-evaluation/main/reports/figures/06_judge_bias.png)
+
+*This notebook is published without outputs, so no credential can ever be saved into one. The figures above are the ones it writes; its full printed output is in [`reports/llm_run/06_judge_analysis.txt`](../reports/llm_run/06_judge_analysis.txt).*
+
+**Next:** [Phase 7](07_decision_memo.ipynb) writes the decision and checks the memo.
+
 Phase 5 asked whether the judge gets known cases right. Necessary, and
 not sufficient. A judge can score 100% on unambiguous cases and still be
 useless for comparing prompt variants, because it may respond to

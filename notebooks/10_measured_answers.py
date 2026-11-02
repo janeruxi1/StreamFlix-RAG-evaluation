@@ -2,6 +2,17 @@
 Phase 10 — The Record Behind the Demo
 ======================================
 
+At a glance
+-----------
+
+**Question.** Does the demo app replay exactly the run the memo reports?
+
+**Answer.** Yes: all 22 aggregates recomputed from the demo's record match the Phase 5 and Phase 8 records.
+
+*This notebook is published without outputs, so no credential can ever be saved into one. Its full printed output is in [`reports/llm_run/10_measured_answers.txt`](../reports/llm_run/10_measured_answers.txt).*
+
+**Next:** [Phase 11](11_ticket_routing.ipynb) routes tickets before anyone answers them.
+
 The memo's numbers are aggregates. A reader who wants to see what
 "refused 25 of 25" or "3 of 76 unsupported" looks like needs the answers
 themselves, and a public demo cannot call a paid model to produce them.
