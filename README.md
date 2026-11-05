@@ -39,12 +39,12 @@ paired bootstrap.
 | Can the judge be believed? | It scored **100% on 9 cases** with known verdicts before any score was used; a lexical judge scores 50% on the same cases. It is lenient when an answer omits a caveat. |
 | What is the evidence worth? | With a cost on a wrong answer, the refusal evidence is already enough. The bad-answer rate (3 of 76) moves the system's value **5.8x** as much, so the [pilot](reports/pilot_design.md) is sized to measure that: about 273 reviewed drafts. |
 
-![Refusal against helpfulness for each prompt](reports/figures/04_refusal_tradeoff.png)
+![What the assistant did with the 120 test questions](reports/figures/00_readme_summary.png)
 
-*Left: each prompt's refusal rate on unanswerable questions against its
-answer rate on answerable ones. `naive` answers every answerable question
-and most of the unanswerable ones. Right: the same tension in a non-LLM baseline as one
-threshold moves.*
+*The careful (`cited`) prompt declines all 25 questions the help centre can't answer, at the price
+of declining 19 it could have answered; the `naive` prompt answers everything, including 15 it
+should have declined. Drawn from the recorded results by `scripts/make_readme_figure.py`; the
+full trade-off across all prompts is in [notebook 04](notebooks/04_generation.ipynb).*
 
 ## Routing the ticket first (notebook 11)
 

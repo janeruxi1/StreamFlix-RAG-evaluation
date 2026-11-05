@@ -55,10 +55,10 @@ def test_replay_headline_matches_the_measured_record():
     per-question rows, so this pins the page to the measured run."""
     at = _run("Measured results")
     tiles = {m.label: m.value for m in at.metric}
-    assert tiles["cited: unanswerable questions refused"] == "25 of 25"
-    assert tiles["naive: unanswerable questions refused"] == "10 of 25"
-    assert tiles["cited: answerable questions answered"] == "76 of 95"
-    assert tiles["cited: answers with an unsupported claim"] == "3 of 76"
+    assert tiles["Cited: declined, no answer"] == "25 of 25"
+    assert tiles["Naive: declined, no answer"] == "10 of 25"
+    assert tiles["Cited: answered"] == "76 of 95"
+    assert tiles["Cited: unsupported claims"] == "3 of 76"
 
 
 def test_every_replay_view_has_questions_and_renders():

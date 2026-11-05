@@ -115,6 +115,7 @@ golden = load_questions()
 has_key, blocker = provider_ready()
 record, R03, R05, R06, R08 = load_measured()
 
+REPO_URL = "https://github.com/janeruxi1/StreamFlix-RAG-evaluation"
 MEASURED = "Measured results"
 MODES = ([MEASURED] if record else []) + [
     "Ask anything", "Golden set", "Is the judge trustworthy?"]
@@ -299,7 +300,20 @@ def show_measured_answer(arm: str, entry: dict, question: dict):
 
 
 if mode == MEASURED:
-    st.title("What was measured")
+    st.title("🔍 Should a help-centre bot answer support questions?")
+    st.markdown(
+        "A model answers customer questions from StreamFlix's 45 help-centre articles, and must "
+        "**decline** when the articles don't cover the question. Two prompts were tested on 120 "
+        "questions with known answers: a **naive** one and a **cited** one that must quote its sources."
+    )
+    st.success(
+        "**Decision: pilot the cited prompt with a support agent in the loop; never ship the naive "
+        "one.** The cited prompt declined every question it could not answer; the naive prompt "
+        "answered 15 of those 25 anyway."
+    )
+    st.markdown(f"[Code and notebooks]({REPO_URL}) · "
+                f"[Decision memo]({REPO_URL}/blob/main/reports/decision_memo.md)")
+    st.subheader("What was measured")
     st.caption(
         f"Real answers from `{record['generation_model']}`, scored by the "
         f"`gpt-4o` judge, replayed from the committed record of the "
@@ -311,14 +325,19 @@ if mode == MEASURED:
     cited = arm_summary(record, "rag_cited", golden)
     full = arm_summary(record, "full_cited", golden)
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("cited: unanswerable questions refused",
-              f"{cited['out_of_scope_refused']} of {cited['out_of_scope_n']}")
-    c2.metric("naive: unanswerable questions refused",
-              f"{naive['out_of_scope_refused']} of {naive['out_of_scope_n']}")
-    c3.metric("cited: answerable questions answered",
-              f"{cited['in_scope_answered']} of {cited['in_scope_n']}")
-    c4.metric("cited: answers with an unsupported claim",
-              f"{cited['in_scope_answers_unfaithful']} of {cited['in_scope_answered']}")
+    c1.metric("Cited: declined, no answer",
+              f"{cited['out_of_scope_refused']} of {cited['out_of_scope_n']}", border=True,
+              help="Questions the help centre cannot answer. Declining is the right outcome.")
+    c2.metric("Naive: declined, no answer",
+              f"{naive['out_of_scope_refused']} of {naive['out_of_scope_n']}", border=True,
+              help="The same unanswerable questions. The rest were answered anyway, usually with "
+                   "something made up.")
+    c3.metric("Cited: answered",
+              f"{cited['in_scope_answered']} of {cited['in_scope_n']}", border=True,
+              help="Questions the help centre does answer.")
+    c4.metric("Cited: unsupported claims",
+              f"{cited['in_scope_answers_unfaithful']} of {cited['in_scope_answered']}", border=True,
+              help="Answers containing a claim the cited articles do not support, per the gpt-4o judge.")
     if R05:
         bound = R05["refusals"]["llm_cited"]["out_of_scope_refusal_wilson_lower_95"]
         st.caption(
