@@ -49,6 +49,11 @@ answers the most of those. Drawn from the recorded results by `scripts/make_read
 | **BGE-small, fine-tuned** | **93.8%** | **97.0% at 95.3% correct** | **0.016** |
 | gpt-4o-mini, zero-shot | 66.6% | no confidence to threshold | — |
 
+*Fine-tuning beats TF-IDF by +2.3 points [+1.4, +3.2] on seed 0 and on every seed; its accuracy edge over
+frozen embeddings is significant for only 1 of 3 seeds, but its calibration edge holds on all three. The LLM
+was scored on 1,001 tickets (14 of 1,001 unparsed) at $0.081 per 1,000. Details in the
+[routing note](reports/routing_note.md).*
+
 ![Key results at a glance](reports/figures/00_readme_summary.png)
 
 *Left and middle: what each prompt did with the 120 test questions. Right: sending every article instead
